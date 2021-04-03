@@ -37,7 +37,6 @@ class RolloutStorage(object):
         self.bad_masks = self.bad_masks.to(device)
 
     def insert(self, obs, actions, action_log_probs, value_preds, rewards, masks, bad_masks):
-        assert actions.shape[1:] == (10,)
         self.obs[self.step + 1].copy_(obs)
         self.actions[self.step].copy_(actions)
         self.action_log_probs[self.step].copy_(action_log_probs)

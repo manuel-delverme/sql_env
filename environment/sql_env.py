@@ -20,8 +20,8 @@ import constants
 torch.manual_seed(1)
 
 EMBEDDING_DIM = 10
-vocab = sorted(["UNION", "SELECT", "admin", "FROM", "users", "1", "ERROR", " "])
-word_to_idx = {word: idx for idx, word in enumerate(vocab)}
+QUERY_LEN = 4
+OBSERVATION_LEN = 20
 
 
 class SQLEnv(gym.Env):
@@ -29,32 +29,54 @@ class SQLEnv(gym.Env):
         pass
 
     def __init__(self, html):
+
         self.html = html
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, name TEXT, surname TEXT, password TEXT)")
-        self.cursor.executemany("INSERT INTO users(id, username, name, surname, password) VALUES(NULL, ?, ?, ?, ?)",
-                                ((_.findtext("username"), _.findtext("name"), _.findtext("surname"), _.findtext("password")) for _ in
-                                 xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")))
+
+        data = []
+        query_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
+        output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
+
+        for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
+            row = row.findtext("username"), row.findtext("name"), row.findtext("surname"), row.findtext("password")
+            data.append(row)
+            output_vocab.update(row)
+            output_vocab.update(str(idx + 1))
+
+        self.cursor.executemany("INSERT INTO users(id, username, name, surname, password) VALUES(NULL, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
 
-        self.observation_space = gym.Space((4, EMBEDDING_DIM), )
-        self.action_space = gym.spaces.MultiDiscrete(10 * [len(vocab), ])
+        query_vocab = sorted(query_vocab)
+        output_vocab = sorted(output_vocab)
+        self.query_word_to_idx = {word: idx for idx, word in enumerate(query_vocab)}
+        self.output_word_to_idx = {word: idx for idx, word in enumerate(output_vocab)}
 
-        self.embeddings = nn.Embedding(len(vocab), EMBEDDING_DIM)
+        self.observation_space = gym.Space((OBSERVATION_LEN, EMBEDDING_DIM), )
+        self.action_space = gym.spaces.MultiDiscrete(QUERY_LEN * [len(query_vocab), ])
+
+        self.embeddings = nn.Embedding(len(output_vocab), EMBEDDING_DIM)
         self.embeddings.weight.requires_grad = False
+        self.query_vocab = query_vocab
+        self.output_vocab = output_vocab
+
+    def _decode(self, action):
+        return " ".join([self.query_vocab[w] for w in action])
 
     def _encode(self, state):
-        # diff = difflib.ndiff(self.reference_html.split(), state.split())
-        # print('\n'.join(list(diff)))
-        # return torch.randn(10)
         words = state.split()
         assert len(words) <= self.observation_space.shape[0]
 
-        words = words + [" "] * self.observation_space.shape[0]
+        words = words + [""] * self.observation_space.shape[0]
         words = words[:self.observation_space.shape[0]]
-        return torch.tensor([word_to_idx[w] for w in words], dtype=torch.long)
+        try:
+            retr = torch.tensor([self.output_word_to_idx[w] for w in words], dtype=torch.long)
+        except Exception as e:
+            print(state)
+            raise e
+        return retr
 
     def get_obs(self, text):
         word_idxes = self._encode(text)
@@ -62,13 +84,17 @@ class SQLEnv(gym.Env):
         assert embeds.shape == self.observation_space.shape
         return embeds
 
-    def step(self, query):
-        assert self.action_space.shape == query.shape
+    def step(self, action):
+        assert self.action_space.shape == action.shape
+
+        query = self._decode(action)
+
         code = http.client.OK
         content = ""
 
         try:
-            self.cursor.execute("SELECT id, username, name, surname FROM users WHERE id=" + query)
+            # self.cursor.execute("SELECT id, username, name, surname FROM users WHERE id=" + query)
+            self.cursor.execute(query)
             content += "<div><span>Result(s):</span></div><table><thead><th>id</th><th>username</th><th>name</th><th>surname</th></thead>" if self.html else ""
             for user in self.cursor.fetchall():
                 content += f"<tr>" if self.html else ""
@@ -84,11 +110,11 @@ class SQLEnv(gym.Env):
 
         terminal = False
         if code == http.client.INTERNAL_SERVER_ERROR:
-            reward = -0.1
+            reward = -0.
         else:
-            reward = 0
+            reward = 0.
         if "7en8aiDoh!" in content:
-            reward += 10
+            reward += 1
             terminal = True
 
         obs = self.get_obs(html_response)
@@ -96,8 +122,9 @@ class SQLEnv(gym.Env):
         return obs, reward, terminal, {}
 
     def reset(self):
-        query = ["1", ] + 9 * [" "]
-        action = torch.tensor([word_to_idx[w] for w in query], dtype=torch.long)
+        query = ["1", ] + (QUERY_LEN - 1) * [""]
+        action = [self.query_word_to_idx[w] for w in query]
+        action = torch.tensor(action, dtype=torch.long)
         return self.step(action)[0]
 
     def get_params(self, query):

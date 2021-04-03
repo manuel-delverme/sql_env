@@ -23,8 +23,6 @@ def get_vec_normalize(venv):
     elif hasattr(venv, 'venv'):
         return get_vec_normalize(venv.venv)
 
-    return None
-
 
 # Necessary for my KFAC implementation.
 class AddBias(nn.Module):

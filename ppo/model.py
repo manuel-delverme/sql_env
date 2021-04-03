@@ -121,7 +121,6 @@ class MLPBase(NNBase):
 
     def forward(self, inputs):
         x = inputs
-        assert x.shape[1:] == (4, 10)
         _x, rnn_hxs = self.gru(x.transpose(0, 1), None)
         rnn_hxs = rnn_hxs.squeeze(0)
 

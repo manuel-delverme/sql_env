@@ -47,11 +47,7 @@ def main():
     start = time.time()
     num_updates = int(args.num_env_steps) // args.num_steps // args.num_processes
 
-    for j in range(num_updates):
-
-        if args.use_linear_lr_decay:
-            # decrease learning rate linearly
-            utils.update_linear_schedule(agent.optimizer, j, num_updates, args.lr)
+    for network_updates in range(num_updates):
 
         for step in range(args.num_steps):
             # Sample actions
@@ -79,7 +75,7 @@ def main():
         rollouts.after_update()
 
         # save for every interval-th episode or for the last epoch
-        if (j % args.save_interval == 0 or j == num_updates - 1) and args.save_dir != "":
+        if network_updates % args.save_interval == 0 or network_updates == num_updates - 1:
             save_path = args.save_dir
             try:
                 os.makedirs(save_path)
@@ -87,14 +83,14 @@ def main():
                 pass
             torch.save([actor_critic, getattr(utils.get_vec_normalize(envs), 'obs_rms', None)], save_path + ".pt")
 
-        if j % args.log_interval == 0 and len(episode_rewards) > 1:
-            total_num_steps = (j + 1) * args.num_processes * args.num_steps
+        if network_updates % args.log_interval == 0 and len(episode_rewards) > 1:
+            total_num_steps = (network_updates + 1) * args.num_processes * args.num_steps
             end = time.time()
             print("Updates {}, num timesteps {}, FPS {} \n Last {} training episodes: mean/median reward {:.1f}/{:.1f}, min/max reward {:.1f}/{:.1f}\n"
-                  .format(j, total_num_steps, int(total_num_steps / (end - start)), len(episode_rewards), np.mean(episode_rewards),
+                  .format(network_updates, total_num_steps, int(total_num_steps / (end - start)), len(episode_rewards), np.mean(episode_rewards),
                           np.median(episode_rewards), np.min(episode_rewards), np.max(episode_rewards), dist_entropy, value_loss, action_loss))
 
-        if args.eval_interval is not None and len(episode_rewards) > 1 and j % args.eval_interval == 0:
+        if args.eval_interval is not None and len(episode_rewards) > 1 and network_updates % args.eval_interval == 0:
             obs_rms = utils.get_vec_normalize(envs).obs_rms
             evaluate(actor_critic, obs_rms, args.env_name, args.seed, args.num_processes, eval_log_dir, device)
 

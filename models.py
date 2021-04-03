@@ -25,9 +25,3 @@ class SQLModel(nn.Module):
 
     def imprint(self, html):
         self.reference_html = html
-
-    def encode(self, state):
-        # diff = difflib.ndiff(self.reference_html.split(), state.split())
-        # print('\n'.join(list(diff)))
-        # return torch.randn(10)
-        return torch.tensor([word_to_idx[w] for w in state.split()], dtype=torch.long)
