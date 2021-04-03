@@ -5,7 +5,7 @@ USERS_XML = """
 <user id="1"><username>dricci</username><name>dian</name><surname>ricci</surname><password>12345</password></user>
 <user id="2"><username>amason</username><name>anthony</name><surname>mason</surname><password>gandalf</password></user>
 <user id="3"><username>svargas</username><name>sandra</name><surname>vargas</surname><password>phest1945</password></user>
-</users>"""
+</users>""".strip()
 
 LISTEN_ADDRESS, LISTEN_PORT = "127.0.0.1", 65412
 HTML_PREFIX = """
