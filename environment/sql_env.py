@@ -140,10 +140,3 @@ gym.envs.register(
     entry_point='gym.envs.classic_control:MyEnv',
     max_episode_steps=1000,
 )
-
-if __name__ == "__main__":
-    env = SQLEnv()
-    env.reset()
-    action = ""
-    for _ in tqdm.trange(500_000):
-        s, r, t, i = env.step(str(random.random()))
