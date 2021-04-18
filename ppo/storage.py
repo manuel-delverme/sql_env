@@ -1,5 +1,6 @@
 from typing import Tuple
 
+import numpy as np
 import torch
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 
@@ -10,13 +11,12 @@ def _flatten_helper(T, N, _tensor):
 
 class RolloutStorage(object):
     def __init__(self, num_steps, num_processes, obs_shape, action_space):
-        self.obs = torch.zeros(num_steps + 1, num_processes, *obs_shape)
+        self.obs = np.zeros((num_steps + 1, num_processes, *obs_shape), dtype=action_space.dtype)
         self.rewards = torch.zeros(num_steps, num_processes, 1)
         self.value_preds = torch.zeros(num_steps + 1, num_processes, 1)
         self.returns = torch.zeros(num_steps + 1, num_processes, 1)
-        self.action_log_probs = torch.zeros(num_steps, num_processes, 1)
-        action_shape, = action_space.shape
-        self.actions = torch.zeros(num_steps, num_processes, action_shape, dtype=torch.long)
+        self.action_log_probs = [[] for _ in range(num_steps)]
+        self.actions = [[] for _ in range(num_steps)]
         self.masks = torch.ones(num_steps + 1, num_processes, 1)
 
         # Masks that indicate whether it's a true terminal state
@@ -27,19 +27,16 @@ class RolloutStorage(object):
         self.step = 0
 
     def to(self, device):
-        self.obs = self.obs.to(device)
         self.rewards = self.rewards.to(device)
         self.value_preds = self.value_preds.to(device)
         self.returns = self.returns.to(device)
-        self.action_log_probs = self.action_log_probs.to(device)
-        self.actions = self.actions.to(device)
         self.masks = self.masks.to(device)
         self.bad_masks = self.bad_masks.to(device)
 
     def insert(self, obs, actions, action_log_probs, value_preds, rewards, masks, bad_masks):
-        self.obs[self.step + 1].copy_(obs)
-        self.actions[self.step].copy_(actions)
-        self.action_log_probs[self.step].copy_(action_log_probs)
+        self.obs[self.step + 1] = obs.copy()
+        self.actions[self.step] = actions.copy()
+        self.action_log_probs[self.step] = action_log_probs.clone()
         self.value_preds[self.step].copy_(value_preds)
         self.rewards[self.step].copy_(rewards)
         self.masks[self.step + 1].copy_(masks)

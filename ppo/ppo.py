@@ -29,10 +29,7 @@ class PPO:
         dist_entropy_epoch = 0
 
         for e in range(self.ppo_epoch):
-            if self.actor_critic.is_recurrent:
-                data_generator = rollouts.recurrent_generator(advantages, self.num_mini_batch)
-            else:
-                data_generator = rollouts.feed_forward_generator(advantages, self.num_mini_batch)
+            data_generator = rollouts.feed_forward_generator(advantages, self.num_mini_batch)
 
             for sample in data_generator:
                 obs_batch, actions_batch, value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ = sample

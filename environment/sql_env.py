@@ -1,6 +1,5 @@
 import http.client
 import http.server
-import random
 import re
 import sqlite3
 import subprocess
@@ -10,18 +9,29 @@ import urllib.request
 import xml.etree.ElementTree
 
 import gym.envs
-import torch
+import numpy as np
 import torch.distributions
-import torch.nn as nn
-import tqdm
 
 import constants
 
 torch.manual_seed(1)
 
-EMBEDDING_DIM = 10
-QUERY_LEN = 4
-OBSERVATION_LEN = 20
+
+class TextSpace(gym.spaces.Space):
+    def __init__(self, vocab):
+        self.vocab = vocab
+        self.n = len(vocab)
+        super().__init__(shape=(1,), dtype=np.object_)
+
+    def contains(self, x):
+        raise NotImplemented
+
+    def sample(self):
+        raise NotImplemented
+
+    def shape(self):
+        # shapes[key] = box.shape
+        return None
 
 
 class SQLEnv(gym.Env):
@@ -37,7 +47,6 @@ class SQLEnv(gym.Env):
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, name TEXT, surname TEXT, password TEXT)")
 
         data = []
-        query_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
         output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
 
         for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
@@ -46,49 +55,14 @@ class SQLEnv(gym.Env):
             output_vocab.update(row)
             output_vocab.update(str(idx + 1))
 
+        self.observation_space = TextSpace(output_vocab)
+        self.action_space = TextSpace(output_vocab)
+        # output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
+
         self.cursor.executemany("INSERT INTO users(id, username, name, surname, password) VALUES(NULL, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
 
-        query_vocab = sorted(query_vocab)
-        output_vocab = sorted(output_vocab)
-        self.query_word_to_idx = {word: idx for idx, word in enumerate(query_vocab)}
-        self.output_word_to_idx = {word: idx for idx, word in enumerate(output_vocab)}
-
-        self.observation_space = gym.Space((OBSERVATION_LEN, EMBEDDING_DIM), )
-        self.action_space = gym.spaces.MultiDiscrete(QUERY_LEN * [len(query_vocab), ])
-
-        self.embeddings = nn.Embedding(len(output_vocab), EMBEDDING_DIM)
-        self.embeddings.weight.requires_grad = False
-        self.query_vocab = query_vocab
-        self.output_vocab = output_vocab
-
-    def _decode(self, action):
-        return " ".join([self.query_vocab[w] for w in action])
-
-    def _encode(self, state):
-        words = state.split()
-        assert len(words) <= self.observation_space.shape[0]
-
-        words = words + [""] * self.observation_space.shape[0]
-        words = words[:self.observation_space.shape[0]]
-        try:
-            retr = torch.tensor([self.output_word_to_idx[w] for w in words], dtype=torch.long)
-        except Exception as e:
-            print(state)
-            raise e
-        return retr
-
-    def get_obs(self, text):
-        word_idxes = self._encode(text)
-        embeds = self.embeddings(word_idxes)
-        assert embeds.shape == self.observation_space.shape
-        return embeds
-
-    def step(self, action):
-        assert self.action_space.shape == action.shape
-
-        query = self._decode(action)
-
+    def step(self, query: str):
         code = http.client.OK
         content = ""
 
@@ -117,15 +91,11 @@ class SQLEnv(gym.Env):
             reward += 1
             terminal = True
 
-        obs = self.get_obs(html_response)
-        assert obs.shape == self.observation_space.shape
-        return obs, reward, terminal, {}
+        return html_response, reward, terminal, {}
 
     def reset(self):
-        query = ["1", ] + (QUERY_LEN - 1) * [""]
-        action = [self.query_word_to_idx[w] for w in query]
-        action = torch.tensor(action, dtype=torch.long)
-        return self.step(action)[0]
+        state, _, _, _ = self.step("1")
+        return state
 
     def get_params(self, query):
         params = {}

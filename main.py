@@ -30,7 +30,7 @@ def main():
 
     envs = make_vec_envs("SQL-v0", args.seed, args.num_processes, args.gamma, args.log_dir, device, False)
 
-    actor_critic = ppo.model.Policy(envs.observation_space.shape, envs.action_space)
+    actor_critic = ppo.model.Policy(envs.observation_space.shape, envs.action_space.vocab)
     actor_critic.to(device)
 
     agent = ppo.PPO(
@@ -39,7 +39,7 @@ def main():
     rollouts = RolloutStorage(args.num_steps, args.num_processes, envs.observation_space.shape, envs.action_space)
 
     obs = envs.reset()
-    rollouts.obs[0].copy_(obs)
+    rollouts.obs[0] = obs.copy()
     rollouts.to(device)
 
     episode_rewards = deque(maxlen=10)

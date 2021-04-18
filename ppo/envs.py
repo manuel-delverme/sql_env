@@ -44,12 +44,6 @@ def make_vec_envs(env_name, seed, num_processes, gamma, log_dir, device, allow_e
     else:
         envs = DummyVecEnv(envs)
 
-    if len(envs.observation_space.shape) == 1:
-        if gamma is None:
-            envs = VecNormalize(envs, norm_reward=False)
-        else:
-            envs = VecNormalize(envs, gamma=gamma)
-
     envs = VecPyTorch(envs, device)
 
     if num_frame_stack is not None:
@@ -119,19 +113,13 @@ class VecPyTorch(VecEnvWrapper):
 
     def reset(self):
         obs = self.venv.reset()
-        obs = torch.from_numpy(obs).float().to(self.device)
         return obs
 
     def step_async(self, actions):
-        if isinstance(actions, torch.LongTensor):
-            # Squeeze the dimension for discrete actions
-            actions = actions.squeeze(1)
-        actions = actions.cpu().numpy()
         self.venv.step_async(actions)
 
     def step_wait(self):
         obs, reward, done, info = self.venv.step_wait()
-        obs = torch.from_numpy(obs).float().to(self.device)
         reward = torch.from_numpy(reward).unsqueeze(dim=1).float()
         return obs, reward, done, info
 
