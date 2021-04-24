@@ -45,7 +45,7 @@ class RolloutStorage(object):
         self.step = (self.step + 1) % self.num_steps
 
     def after_update(self):
-        self.obs[0].copy_(self.obs[-1])
+        self.obs[0] = self.obs[-1].copy()
         self.masks[0].copy_(self.masks[-1])
         self.bad_masks[0].copy_(self.bad_masks[-1])
 
@@ -58,8 +58,7 @@ class RolloutStorage(object):
                     delta = self.rewards[step] + gamma * self.value_preds[
                         step + 1] * self.masks[step +
                                                1] - self.value_preds[step]
-                    gae = delta + gamma * gae_lambda * self.masks[step +
-                                                                  1] * gae
+                    gae = delta + gamma * gae_lambda * self.masks[step + 1] * gae
                     gae = gae * self.bad_masks[step + 1]
                     self.returns[step] = gae + self.value_preds[step]
             else:
@@ -99,12 +98,12 @@ class RolloutStorage(object):
             mini_batch_size,
             drop_last=True)
         for indices in sampler:
-            obs_batch = self.obs[:-1].view(-1, *self.obs.size()[2:])[indices]
-            actions_batch = self.actions.view(-1, self.actions.size(-1))[indices]
+            obs_batch = self.obs[:-1].reshape(-1, *self.obs.shape[2:])[indices]
+            actions_batch = np.stack([self.actions[idx].squeeze() for idx in indices])
             value_preds_batch = self.value_preds[:-1].view(-1, 1)[indices]
             return_batch = self.returns[:-1].view(-1, 1)[indices]
             masks_batch = self.masks[:-1].view(-1, 1)[indices]
-            old_action_log_probs_batch = self.action_log_probs.view(-1, 1)[indices]
+            old_action_log_probs_batch = np.stack([self.action_log_probs[idx].squeeze() for idx in indices])
             if advantages is None:
                 adv_targ = None
             else:

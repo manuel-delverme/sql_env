@@ -33,6 +33,7 @@ class PPO:
 
             for sample in data_generator:
                 obs_batch, actions_batch, value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ = sample
+                old_action_log_probs_batch = torch.tensor(old_action_log_probs_batch, device=value_preds_batch.device)
 
                 # Reshape to do in a single forward pass for all steps
                 values, action_log_probs, dist_entropy = self.actor_critic.evaluate_actions(obs_batch, actions_batch)

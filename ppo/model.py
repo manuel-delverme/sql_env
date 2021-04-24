@@ -61,20 +61,22 @@ class Policy(nn.Module):
         value, _, _ = self.base(embeds)
         return value
 
-    def evaluate_actions(self, inputs, action):
-        value, actor_features = self.base(inputs)
-        dist = self.dist(actor_features)
+    def evaluate_actions(self, batch_response, action):
+        embeds = self.html_to_embedd(batch_response)
+        value, query, query_logprobs = self.base(embeds)
+        # dist = self.dist(actor_features)
+        # action = action.unsqueeze(0)
+        # shifted_idx = list(range(action.dim()))
+        # shifted_idx.append(shifted_idx.pop(0))
+        # action = action.permute(*shifted_idx)
+        # sample_shape = dist._batch_shape + dist._event_shape
+        # one_hot_actions = action.new(sample_shape).zero_()
+        # one_hot_actions.scatter_add_(-1, action, torch.ones_like(action))
 
-        action = action.unsqueeze(0)
-        shifted_idx = list(range(action.dim()))
-        shifted_idx.append(shifted_idx.pop(0))
-        action = action.permute(*shifted_idx)
-        sample_shape = dist._batch_shape + dist._event_shape
-        one_hot_actions = action.new(sample_shape).zero_()
-        one_hot_actions.scatter_add_(-1, action, torch.ones_like(action))
-
-        action_log_probs = dist.log_probs(one_hot_actions)
-        dist_entropy = dist.entropy().mean()
+        action_log_probs = torch.stack(query_logprobs, dim=1)
+        # torch.softmax(query_logprobs)
+        # dist_entropy = dist.entropy().mean()
+        dist_entropy = torch.ones(1)
 
         return value, action_log_probs, dist_entropy
 
@@ -111,6 +113,7 @@ class MLPBase(NNBase):
         self.train()
 
     def forward(self, inputs):
+        assert isinstance(inputs, torch.Tensor)
         x = inputs
         hist = x.transpose(0, 1)
 
@@ -122,7 +125,7 @@ class MLPBase(NNBase):
         query = []
         query_logprobs = []
 
-        for _ in range(50):
+        for _ in range(4):
             word_logprobs, rnn_hxs = self.actor(rnn_hxs)
             word = torch.argmax(word_logprobs)
             if word == 0.:
@@ -130,6 +133,7 @@ class MLPBase(NNBase):
             else:
                 query.append(word)
                 query_logprobs.append(word_logprobs[:, word])
+        print(query)
         return value, query, query_logprobs
 
 
