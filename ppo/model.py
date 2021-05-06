@@ -136,7 +136,7 @@ class MLPBase(NNBase):
         self.train()
 
     def forward(self, inputs):
-        assert isinstance(inputs, torch.Tensor) and x.ndim == 3
+        assert isinstance(inputs, torch.Tensor) and inputs.ndim == 3
         x = inputs
 
         _, rnn_hxs = self.gru(x, None)  # (seq_len, batch, input_size)
