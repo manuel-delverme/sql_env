@@ -63,9 +63,11 @@ class SQLEnv(gym.Env):
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
 
     def step(self, query: str):
+        assert isinstance(query, str)
         code = http.client.OK
         content = ""
-
+        # query=  "SELECT * FROM users"
+        # TODO Cursor doesn't owkr.' fix me.
         try:
             # self.cursor.execute("SELECT id, username, name, surname FROM users WHERE id=" + query)
             self.cursor.execute(query)

@@ -55,7 +55,8 @@ def main():
                 value, action, action_log_prob = actor_critic.act(rollouts.obs[step])
 
             # Obser reward and next obs
-            obs, reward, done, infos = envs.step(action)
+            action_string = " ".join(action.squeeze())
+            obs, reward, done, infos = envs.step(action_string)
 
             for info in infos:
                 if 'episode' in info.keys():

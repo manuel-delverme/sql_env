@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import re
 
 
 class Flatten(nn.Module):
@@ -9,14 +10,14 @@ class Flatten(nn.Module):
 
 
 class Policy(nn.Module):
-    def __init__(self, obs_shape, action_shape):
+    def __init__(self, obs_shape, output_vocab):
         super(Policy, self).__init__()
         EMBEDDING_DIM = 10
         OBSERVATION_LEN = 20
 
-        query_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
-        query_vocab = sorted(query_vocab)
-        output_vocab = sorted(action_shape)
+        base_query = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
+        query_vocab = sorted(output_vocab)
+        output_vocab = sorted(base_query)
 
         self.query_word_to_idx = {word: idx for idx, word in enumerate(query_vocab)}
         self.output_word_to_idx = {word: idx for idx, word in enumerate(output_vocab)}
@@ -32,7 +33,7 @@ class Policy(nn.Module):
         self.query_vocab = query_vocab
         self.output_vocab = output_vocab
 
-        self.base = MLPBase(EMBEDDING_DIM, len(action_shape))
+        self.base = MLPBase(EMBEDDING_DIM, len(output_vocab))
 
     def _decode(self, action):
         return " ".join([self.query_vocab[w] for w in action])
@@ -44,6 +45,8 @@ class Policy(nn.Module):
 
     def act(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
+        # extend in batch dimnesion (will go away with more envs)
+        embeds = embeds.unsqueeze(1)
         value, query, query_logprobs = self.base(embeds)
         query = [self.output_vocab[int(q)] for q in query]
         return value, np.array(query).reshape(1, 1, -1), torch.stack(query_logprobs)
@@ -51,13 +54,21 @@ class Policy(nn.Module):
     def html_to_embedd(self, batch_response):
         word_idxes = []
         for response in batch_response:
-            word_idxes.append([self.query_word_to_idx[word] for word in response])
+            for content in response:
+                # This handle the strange use case when the agent has access to the db and needs to split the obs
+                if re.search(r"\s", content) is not None:
+                    word_idxes.extend([self.query_word_to_idx[w] for w in set(content.split("\n"))])
+                else:
+                    word_idxes.append(self.query_word_to_idx[content])
         word_idxes = torch.tensor(word_idxes)
         embeds = self.embeddings_in(word_idxes)
         return embeds
 
     def get_value(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
+        # exted in batch dimension as this is used to estimate the value at last state
+        # remove me when multiple env
+        embeds = embeds.unsqueeze(1)
         value, _, _ = self.base(embeds)
         return value
 
@@ -65,6 +76,8 @@ class Policy(nn.Module):
         embeds = self.html_to_embedd(batch_response)
 
         # query = [self.output_word_to_idx[q] for q in action for action in actions]
+        # here we extend in the time domain instead as we ware batching
+        embeds = embeds.unsqueeze(0)
         value, query, query_logprobs = self.base(embeds)
         query_logprobs = torch.stack(query_logprobs, dim=1)
         parsed_actions = []
@@ -123,11 +136,10 @@ class MLPBase(NNBase):
         self.train()
 
     def forward(self, inputs):
-        assert isinstance(inputs, torch.Tensor)
+        assert isinstance(inputs, torch.Tensor) and x.ndim == 3
         x = inputs
-        hist = x.transpose(0, 1)
 
-        _x, rnn_hxs = self.gru(hist, None)  # (seq_len, batch, input_size)
+        _, rnn_hxs = self.gru(x, None)  # (seq_len, batch, input_size)
         rnn_hxs = rnn_hxs.squeeze(0)
         # TODO: this was _x instead of rnn_hxs, but i want to remove the time dimension
         # TODO fix this with logprop
