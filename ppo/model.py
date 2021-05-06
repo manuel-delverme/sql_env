@@ -46,29 +46,38 @@ class Policy(nn.Module):
     def act(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
         # extend in batch dimnesion (will go away with more envs)
-        embeds = embeds.unsqueeze(1)
+        # embeds = embeds.unsqueeze(1)
         value, query, query_logprobs = self.base(embeds)
-        query = [self.output_vocab[int(q)] for q in query]
-        return value, np.array(query).reshape(1, 1, -1), torch.stack(query_logprobs)
+        b, t, _ = query.shape
+        queries = []
+        for n in range(b):
+            q = list(map(lambda q: self.output_vocab[int(q)], query[n]))
+            queries.append(q)
+        ## query = [self.output_vocab[int(q)] for q in query]
+        return value, np.array(queries), query_logprobs
 
     def html_to_embedd(self, batch_response):
         word_idxes = []
         for response in batch_response:
             for content in response:
-                # This handle the strange use case when the agent has access to the db and needs to split the obs
+                content = content.strip()
                 if re.search(r"\s", content) is not None:
-                    word_idxes.extend([self.query_word_to_idx[w] for w in set(content.split("\n"))])
+                    sentence_embeddings = []
+                    out = content.split()
+                    for w in out:
+                        sentence_embeddings.append(self.query_word_to_idx[w])
+                    embeds = self.embeddings_in(torch.tensor(sentence_embeddings))
                 else:
-                    word_idxes.append(self.query_word_to_idx[content])
-        word_idxes = torch.tensor(word_idxes)
-        embeds = self.embeddings_in(word_idxes)
-        return embeds
+                    embeds = self.embeddings_in(torch.tensor(self.query_word_to_idx[content])).unsqueeze(0)
+                word_idxes.append(embeds)
+        assert len(word_idxes) == len(batch_response)
+        return word_idxes
 
     def get_value(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
         # exted in batch dimension as this is used to estimate the value at last state
         # remove me when multiple env
-        embeds = embeds.unsqueeze(1)
+        # embeds = embeds.unsqueeze(1)
         value, _, _ = self.base(embeds)
         return value
 
@@ -77,9 +86,9 @@ class Policy(nn.Module):
 
         # query = [self.output_word_to_idx[q] for q in action for action in actions]
         # here we extend in the time domain instead as we ware batching
-        embeds = embeds.unsqueeze(0)
+        # embeds = embeds.unsqueeze(0)
         value, query, query_logprobs = self.base(embeds)
-        query_logprobs = torch.stack(query_logprobs, dim=1)
+        # query_logprobs = torch.stack(query_logprobs, dim=1)
         parsed_actions = []
         for action in actions:
             for q in action:
@@ -136,11 +145,15 @@ class MLPBase(NNBase):
         self.train()
 
     def forward(self, inputs):
-        assert isinstance(inputs, torch.Tensor) and inputs.ndim == 3
-        x = inputs
-
-        _, rnn_hxs = self.gru(x, None)  # (seq_len, batch, input_size)
-        rnn_hxs = rnn_hxs.squeeze(0)
+        # assert isinstance(inputs, torch.Tensor) and inputs.ndim == 3
+        # x = inputs
+        collect = []
+        for x in inputs:
+            assert x.ndim == 2
+            _, rnn_hxs = self.gru(x.unsqueeze(1), None)  # (seq_len, batch, input_size)
+            collect.append(rnn_hxs.squeeze(0))
+        rnn_hxs = torch.cat(collect)
+        # rnn_hxs = rnn_hxs.squeeze(0)
         # TODO: this was _x instead of rnn_hxs, but i want to remove the time dimension
         # TODO fix this with logprop
         value = self.critic(rnn_hxs)
@@ -150,10 +163,13 @@ class MLPBase(NNBase):
         for _ in range(4):
             word_logprobs, rnn_hxs = self.actor(rnn_hxs)
             # word = torch.argmax(word_logprobs)
-            word = torch.distributions.Categorical(logits=word_logprobs).sample((1,)).squeeze()
+            word = torch.distributions.Categorical(logits=word_logprobs).sample()
             query.append(word)
             query_logprobs.append(word_logprobs)
-
+        # b x t x k
+        query_logprobs = torch.stack(query_logprobs, dim=1)
+        query = torch.stack(query, dim=1).unsqueeze(-1)
+        assert query.shape[:2] == query_logprobs.shape[:2]
         return value, query, query_logprobs
 
 

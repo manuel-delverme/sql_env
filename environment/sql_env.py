@@ -40,6 +40,7 @@ class SQLEnv(gym.Env):
 
     def __init__(self, html):
 
+        self.get_help_reward = False
         self.html = html
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
@@ -66,7 +67,6 @@ class SQLEnv(gym.Env):
         assert isinstance(query, str)
         code = http.client.OK
         content = ""
-        # query=  "SELECT * FROM users"
         # TODO Cursor doesn't owkr.' fix me.
         try:
             # self.cursor.execute("SELECT id, username, name, surname FROM users WHERE id=" + query)
@@ -79,7 +79,8 @@ class SQLEnv(gym.Env):
                 content += f"</tr>" if self.html else ""
             content += f"</table>" if self.html else ""
         except Exception as ex:
-            content += ex.output if isinstance(ex, subprocess.CalledProcessError) else traceback.format_exc() if self.html else "ERROR"
+            content += ex.output if isinstance(ex,
+                                               subprocess.CalledProcessError) else traceback.format_exc() if self.html else "ERROR"
             code = http.client.INTERNAL_SERVER_ERROR
 
         html_response = (constants.HTML_PREFIX + content + constants.HTML_POSTFIX) if self.html else content
@@ -89,11 +90,19 @@ class SQLEnv(gym.Env):
             reward = -0.
         else:
             reward = 0.
-        if "7en8aiDoh!" in content:
+        if "7en8aiDoh!" in content in content:
             reward += 1
             terminal = True
-
+        if self.get_help_reward:
+            reward += self._get_help_reward(query)[0]
         return html_response, reward, terminal, {}
+
+    def _get_help_reward(self, query: str):
+        reward = 0
+        optimal_query = "SELECT * FROM users"
+        for idx, word in enumerate(query.split(" ")):
+            reward += optimal_query.split(" ")[idx] == word
+        return reward, reward == 4
 
     def reset(self):
         state, _, _, _ = self.step("1")
