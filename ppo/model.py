@@ -15,7 +15,7 @@ class Policy(nn.Module):
         EMBEDDING_DIM = 10
         OBSERVATION_LEN = 20
 
-        base_query = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
+        base_query = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR"}
         query_vocab = sorted(output_vocab)
         output_vocab = sorted(base_query)
 
@@ -57,21 +57,18 @@ class Policy(nn.Module):
         return value, np.array(queries), query_logprobs
 
     def html_to_embedd(self, batch_response):
-        word_idxes = []
+        word_embeddings = []
         for response in batch_response:
             for content in response:
-                content = content.strip()
-                if re.search(r"\s", content) is not None:
-                    sentence_embeddings = []
-                    out = content.split()
-                    for w in out:
-                        sentence_embeddings.append(self.query_word_to_idx[w])
-                    embeds = self.embeddings_in(torch.tensor(sentence_embeddings))
-                else:
-                    embeds = self.embeddings_in(torch.tensor(self.query_word_to_idx[content])).unsqueeze(0)
-                word_idxes.append(embeds)
-        assert len(word_idxes) == len(batch_response)
-        return word_idxes
+                if len(content) > 0:
+                    content = content.strip().split()
+                    sentence_idxs = []
+                    for word in content:
+                        sentence_idxs.append(self.query_word_to_idx[word])
+                embeds = self.embeddings_in(torch.tensor(sentence_idxs))
+                word_embeddings.append(embeds)
+        assert len(word_embeddings) == len(batch_response)
+        return word_embeddings
 
     def get_value(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
@@ -83,12 +80,8 @@ class Policy(nn.Module):
 
     def evaluate_actions(self, batch_response, actions):
         embeds = self.html_to_embedd(batch_response)
-
-        # query = [self.output_word_to_idx[q] for q in action for action in actions]
         # here we extend in the time domain instead as we ware batching
-        # embeds = embeds.unsqueeze(0)
         value, query, query_logprobs = self.base(embeds)
-        # query_logprobs = torch.stack(query_logprobs, dim=1)
         parsed_actions = []
         for action in actions:
             for q in action:
@@ -97,18 +90,6 @@ class Policy(nn.Module):
                 action_vector[action_idx] = 1
                 parsed_actions.append(action_vector)
         parsed_actions = torch.stack(parsed_actions, dim=0).reshape(query_logprobs.shape)
-        # dist = self.dist(actor_features)
-        # action = action.unsqueeze(0)
-        # shifted_idx = list(range(action.dim()))
-        # shifted_idx.append(shifted_idx.pop(0))
-        # action = action.permute(*shifted_idx)
-        # sample_shape = dist._batch_shape + dist._event_shape
-        # one_hot_actions = action.new(sample_shape).zero_()
-        # one_hot_actions.scatter_add_(-1, action, torch.ones_like(action))
-
-        # action_log_probs = torch.stack(query_logprobs, dim=1)
-        # torch.softmax(query_logprobs)
-        # dist_entropy = dist.entropy().mean()
 
         return value, query_logprobs, parsed_actions
 
