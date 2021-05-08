@@ -1,19 +1,12 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import re
-
-
-class Flatten(nn.Module):
-    def forward(self, x):
-        return x.view(x.size(0), -1)
 
 
 class Policy(nn.Module):
     def __init__(self, obs_shape, output_vocab):
         super(Policy, self).__init__()
         EMBEDDING_DIM = 10
-        OBSERVATION_LEN = 20
 
         base_query = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR"}
         query_vocab = sorted(output_vocab)
@@ -21,9 +14,6 @@ class Policy(nn.Module):
 
         self.query_word_to_idx = {word: idx for idx, word in enumerate(query_vocab)}
         self.output_word_to_idx = {word: idx for idx, word in enumerate(output_vocab)}
-
-        # self.observation_space = gym.Space((OBSERVATION_LEN, EMBEDDING_DIM), )
-        # self.action_space = gym.spaces.Discrete(len(query_vocab))
 
         self.embeddings_in = nn.Embedding(len(query_vocab), EMBEDDING_DIM)
         self.embeddings_out = nn.Embedding(len(output_vocab), EMBEDDING_DIM)
@@ -39,21 +29,17 @@ class Policy(nn.Module):
         return " ".join([self.query_vocab[w] for w in action])
 
     def _encode(self, state):
-        # words = words[:self.observation_space.shape[0]]
         retr = torch.tensor([self.output_word_to_idx[w] for w in state], dtype=torch.long)
         return retr
 
     def act(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
-        # extend in batch dimnesion (will go away with more envs)
-        # embeds = embeds.unsqueeze(1)
-        value, query, query_logprobs = self.base(embeds)
-        b, t, _ = query.shape
+        value, batch_query, query_logprobs = self.base(embeds)
+        batch_size, query_length, _ = batch_query.shape
         queries = []
-        for n in range(b):
-            q = list(map(lambda q: self.output_vocab[int(q)], query[n]))
-            queries.append(q)
-        ## query = [self.output_vocab[int(q)] for q in query]
+        for query_idx in batch_query:
+            query_txt = [self.output_vocab[idx] for idx in query_idx]
+            queries.append(query_txt)
         return value, np.array(queries), query_logprobs
 
     def html_to_embedd(self, batch_response):
@@ -94,27 +80,11 @@ class Policy(nn.Module):
         return value, query_logprobs, parsed_actions
 
 
-class NNBase(nn.Module):
-    def __init__(self, recurrent_input_size, hidden_size):
-        super(NNBase, self).__init__()
-
-        self._hidden_size = hidden_size
-        self.gru = nn.GRU(recurrent_input_size, hidden_size)
-
-        for name, param in self.gru.named_parameters():
-            if 'bias' in name:
-                nn.init.constant_(param, 0)
-            elif 'weight' in name:
-                nn.init.orthogonal_(param)
-
-    @property
-    def output_size(self):
-        return self._hidden_size
-
-
-class MLPBase(NNBase):
+class MLPBase(nn.Module):
     def __init__(self, num_inputs, dictionary_size, hidden_size=64):
-        super(MLPBase, self).__init__(num_inputs, hidden_size)
+        super().__init__()
+        self._hidden_size = hidden_size
+        self.gru = nn.GRU(num_inputs, hidden_size)
 
         self.end_of_line = dictionary_size
         self.actor = AutoregressiveActor(hidden_size, hidden_size, dictionary_size)
@@ -126,15 +96,12 @@ class MLPBase(NNBase):
         self.train()
 
     def forward(self, inputs):
-        # assert isinstance(inputs, torch.Tensor) and inputs.ndim == 3
-        # x = inputs
         collect = []
         for x in inputs:
             assert x.ndim == 2
             _, rnn_hxs = self.gru(x.unsqueeze(1), None)  # (seq_len, batch, input_size)
             collect.append(rnn_hxs.squeeze(0))
         rnn_hxs = torch.cat(collect)
-        # rnn_hxs = rnn_hxs.squeeze(0)
         # TODO: this was _x instead of rnn_hxs, but i want to remove the time dimension
         # TODO fix this with logprop
         value = self.critic(rnn_hxs)
@@ -143,7 +110,6 @@ class MLPBase(NNBase):
 
         for _ in range(4):
             word_logprobs, rnn_hxs = self.actor(rnn_hxs)
-            # word = torch.argmax(word_logprobs)
             word = torch.distributions.Categorical(logits=word_logprobs).sample()
             query.append(word)
             query_logprobs.append(word_logprobs)
