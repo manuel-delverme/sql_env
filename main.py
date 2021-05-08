@@ -52,10 +52,11 @@ def main():
         for step in range(args.num_steps):
             # Sample actions
             with torch.no_grad():
-                value, action, action_log_prob = actor_critic.act(rollouts.obs[step])
+                value, actions, action_log_prob = actor_critic.act(rollouts.obs[step])
 
             # Obser reward and next obs
-            obs, reward, done, infos = envs.step(action)
+            action_string = [" ".join(action.squeeze()) for action in actions]
+            obs, reward, done, infos = envs.step(action_string)
 
             for info in infos:
                 if 'episode' in info.keys():
@@ -65,7 +66,7 @@ def main():
             masks = torch.FloatTensor([[0.0] if done_ else [1.0] for done_ in done])
             bad_masks = torch.FloatTensor([[0.0] if 'bad_transition' in info.keys() else [1.0] for info in infos])
 
-            rollouts.insert(obs, action, action_log_prob, value, reward, masks, bad_masks)
+            rollouts.insert(obs, actions, action_log_prob, value, reward, masks, bad_masks)
 
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()

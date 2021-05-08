@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import re
 
 
 class Flatten(nn.Module):
@@ -9,14 +10,14 @@ class Flatten(nn.Module):
 
 
 class Policy(nn.Module):
-    def __init__(self, obs_shape, action_shape):
+    def __init__(self, obs_shape, output_vocab):
         super(Policy, self).__init__()
         EMBEDDING_DIM = 10
         OBSERVATION_LEN = 20
 
-        query_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
-        query_vocab = sorted(query_vocab)
-        output_vocab = sorted(action_shape)
+        base_query = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR"}
+        query_vocab = sorted(output_vocab)
+        output_vocab = sorted(base_query)
 
         self.query_word_to_idx = {word: idx for idx, word in enumerate(query_vocab)}
         self.output_word_to_idx = {word: idx for idx, word in enumerate(output_vocab)}
@@ -32,7 +33,7 @@ class Policy(nn.Module):
         self.query_vocab = query_vocab
         self.output_vocab = output_vocab
 
-        self.base = MLPBase(EMBEDDING_DIM, len(action_shape))
+        self.base = MLPBase(EMBEDDING_DIM, len(output_vocab))
 
     def _decode(self, action):
         return " ".join([self.query_vocab[w] for w in action])
@@ -44,41 +45,53 @@ class Policy(nn.Module):
 
     def act(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
+        # extend in batch dimnesion (will go away with more envs)
+        # embeds = embeds.unsqueeze(1)
         value, query, query_logprobs = self.base(embeds)
-        query = [self.output_vocab[int(q)] for q in query]
-        return value, np.array(query).reshape(1, 1, -1), torch.tensor(query_logprobs).reshape(1, 1, -1)
+        b, t, _ = query.shape
+        queries = []
+        for n in range(b):
+            q = list(map(lambda q: self.output_vocab[int(q)], query[n]))
+            queries.append(q)
+        ## query = [self.output_vocab[int(q)] for q in query]
+        return value, np.array(queries), query_logprobs
 
     def html_to_embedd(self, batch_response):
-        word_idxes = []
+        word_embeddings = []
         for response in batch_response:
-            word_idxes.append([self.query_word_to_idx[word] for word in response])
-        word_idxes = torch.tensor(word_idxes)
-        embeds = self.embeddings_in(word_idxes)
-        return embeds
+            for content in response:
+                if len(content) > 0:
+                    content = content.strip().split()
+                    sentence_idxs = []
+                    for word in content:
+                        sentence_idxs.append(self.query_word_to_idx[word])
+                embeds = self.embeddings_in(torch.tensor(sentence_idxs))
+                word_embeddings.append(embeds)
+        assert len(word_embeddings) == len(batch_response)
+        return word_embeddings
 
     def get_value(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
+        # exted in batch dimension as this is used to estimate the value at last state
+        # remove me when multiple env
+        # embeds = embeds.unsqueeze(1)
         value, _, _ = self.base(embeds)
         return value
 
-    def evaluate_actions(self, batch_response, action):
+    def evaluate_actions(self, batch_response, actions):
         embeds = self.html_to_embedd(batch_response)
+        # here we extend in the time domain instead as we ware batching
         value, query, query_logprobs = self.base(embeds)
-        # dist = self.dist(actor_features)
-        # action = action.unsqueeze(0)
-        # shifted_idx = list(range(action.dim()))
-        # shifted_idx.append(shifted_idx.pop(0))
-        # action = action.permute(*shifted_idx)
-        # sample_shape = dist._batch_shape + dist._event_shape
-        # one_hot_actions = action.new(sample_shape).zero_()
-        # one_hot_actions.scatter_add_(-1, action, torch.ones_like(action))
+        parsed_actions = []
+        for action in actions:
+            for q in action:
+                action_idx = self.output_word_to_idx[q]
+                action_vector = torch.zeros(size=(query_logprobs.shape[-1],))
+                action_vector[action_idx] = 1
+                parsed_actions.append(action_vector)
+        parsed_actions = torch.stack(parsed_actions, dim=0).reshape(query_logprobs.shape)
 
-        action_log_probs = torch.stack(query_logprobs, dim=1)
-        # torch.softmax(query_logprobs)
-        # dist_entropy = dist.entropy().mean()
-        dist_entropy = torch.ones(1)
-
-        return value, action_log_probs, dist_entropy
+        return value, query_logprobs, parsed_actions
 
 
 class NNBase(nn.Module):
@@ -113,27 +126,31 @@ class MLPBase(NNBase):
         self.train()
 
     def forward(self, inputs):
-        assert isinstance(inputs, torch.Tensor)
-        x = inputs
-        hist = x.transpose(0, 1)
-
-        _x, rnn_hxs = self.gru(hist, None)  # (seq_len, batch, input_size)
-        rnn_hxs = rnn_hxs.squeeze(0)
+        # assert isinstance(inputs, torch.Tensor) and inputs.ndim == 3
+        # x = inputs
+        collect = []
+        for x in inputs:
+            assert x.ndim == 2
+            _, rnn_hxs = self.gru(x.unsqueeze(1), None)  # (seq_len, batch, input_size)
+            collect.append(rnn_hxs.squeeze(0))
+        rnn_hxs = torch.cat(collect)
+        # rnn_hxs = rnn_hxs.squeeze(0)
         # TODO: this was _x instead of rnn_hxs, but i want to remove the time dimension
-
+        # TODO fix this with logprop
         value = self.critic(rnn_hxs)
         query = []
         query_logprobs = []
 
         for _ in range(4):
             word_logprobs, rnn_hxs = self.actor(rnn_hxs)
-            word = torch.argmax(word_logprobs)
-            if word == 0.:
-                break
-            else:
-                query.append(word)
-                query_logprobs.append(word_logprobs[:, word])
-        print(query)
+            # word = torch.argmax(word_logprobs)
+            word = torch.distributions.Categorical(logits=word_logprobs).sample()
+            query.append(word)
+            query_logprobs.append(word_logprobs)
+        # b x t x k
+        query_logprobs = torch.stack(query_logprobs, dim=1)
+        query = torch.stack(query, dim=1).unsqueeze(-1)
+        assert query.shape[:2] == query_logprobs.shape[:2]
         return value, query, query_logprobs
 
 
