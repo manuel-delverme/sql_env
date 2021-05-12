@@ -48,7 +48,7 @@ def main():
             with torch.no_grad():
                 value, batch_queries, action_log_prob = actor_critic.act(rollouts.obs[step])
 
-            obs, reward, done, infos = envs.step([" ".join(query) for query in batch_queries])
+            obs, reward, done, infos = envs.step(["".join(query) for query in batch_queries])
 
             for info in infos:
                 if 'episode' in info.keys():

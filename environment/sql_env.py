@@ -34,13 +34,23 @@ class TextSpace(gym.spaces.Space):
         return None
 
 
+def fancy_split(query):
+    query_ = []
+    for q in query.split():
+        if q.islower():
+            query_.extend(q)
+        else:
+            query_.append(q)
+    return query_
+
+
 class SQLEnv(gym.Env):
     def render(self, mode='human'):
         pass
 
     def __init__(self, html):
 
-        self.get_help_reward = False
+        self.get_help_reward = True
         self.html = html
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
@@ -98,10 +108,9 @@ class SQLEnv(gym.Env):
         return html_response, reward, terminal, {}
 
     def _get_help_reward(self, query: str):
-        reward = 0
-        optimal_query = "SELECT * FROM users"
-        for idx, word in enumerate(query.split(" ")):
-            reward += optimal_query.split(" ")[idx] == word
+        optimal_query = "SELECT * FROM".split(" ") + list("users")
+        query_ = fancy_split(query)
+        reward = sum(q == oq for q, oq in zip(query_, optimal_query))
         return reward, reward == 4
 
     def reset(self):

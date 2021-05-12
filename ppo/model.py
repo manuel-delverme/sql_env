@@ -1,4 +1,5 @@
 import numpy as np
+import string
 import torch
 import torch.nn as nn
 
@@ -8,7 +9,7 @@ class Policy(nn.Module):
         super(Policy, self).__init__()
         EMBEDDING_DIM = 10
 
-        base_query = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR"}
+        base_query = set(string.ascii_lowercase + " ").union({" SELECT ", " FROM ", " * "})
         query_vocab = sorted(output_vocab)
         output_vocab = sorted(base_query)
 
@@ -108,7 +109,7 @@ class MLPBase(nn.Module):
         query = []
         query_logprobs = []
 
-        for _ in range(4):
+        for _ in range(8):
             word_logprobs, rnn_hxs = self.actor(rnn_hxs)
             word = torch.distributions.Categorical(logits=word_logprobs).sample()
             query.append(word)
