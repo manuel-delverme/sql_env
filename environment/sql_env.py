@@ -54,6 +54,14 @@ class SQLEnv(gym.Env):
         self.html = html
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
+
+        self._slept = None
+
+        def fake_sleep(time):
+            print(f"sleep {time}")
+            self._slept = time
+
+        self.connection.create_function("sleep", narg=1, func=fake_sleep)
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, name TEXT, surname TEXT, password TEXT)")
 
@@ -77,6 +85,8 @@ class SQLEnv(gym.Env):
         assert isinstance(query, str)
         code = http.client.OK
         content = ""
+        self._slept = None
+
         # TODO Cursor doesn't owkr.' fix me.
         try:
             # self.cursor.execute("SELECT id, username, name, surname FROM users WHERE id=" + query)
@@ -96,6 +106,7 @@ class SQLEnv(gym.Env):
         html_response = (constants.HTML_PREFIX + content + constants.HTML_POSTFIX) if self.html else content
 
         terminal = False
+
         if code == http.client.INTERNAL_SERVER_ERROR:
             reward = -0.
         else:
@@ -105,7 +116,7 @@ class SQLEnv(gym.Env):
             terminal = True
         if self.get_help_reward:
             reward += self._get_help_reward(query)[0]
-        return html_response, reward, terminal, {}
+        return html_response, reward, terminal, {"slept": self._slept}
 
     def _get_help_reward(self, query: str):
         optimal_query = "SELECT * FROM".split(" ") + list("users")
