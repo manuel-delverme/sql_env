@@ -3,6 +3,7 @@ import http.server
 import re
 import sqlite3
 import subprocess
+import time
 import traceback
 import urllib.parse
 import urllib.request
@@ -90,7 +91,10 @@ class SQLEnv(gym.Env):
         # TODO Cursor doesn't owkr.' fix me.
         try:
             # self.cursor.execute("SELECT id, username, name, surname FROM users WHERE id=" + query)
+            start = time.time()
             self.cursor.execute(query)
+            runtime = time.time() - start
+
             content += "<div><span>Result(s):</span></div><table><thead><th>id</th><th>username</th><th>name</th><th>surname</th></thead>" if self.html else ""
             for user in self.cursor.fetchall():
                 content += f"<tr>" if self.html else ""
@@ -98,6 +102,8 @@ class SQLEnv(gym.Env):
                     content += f"<td>{'-' if f is None else f}</td>" if self.html else f"{'-' if f is None else f}\n"
                 content += f"</tr>" if self.html else ""
             content += f"</table>" if self.html else ""
+            runtime += self._slept
+            content += f"query executed in {runtime}" if self.html else f"{runtime}"
         except Exception as ex:
             content += ex.output if isinstance(ex,
                                                subprocess.CalledProcessError) else traceback.format_exc() if self.html else "ERROR"
@@ -116,7 +122,7 @@ class SQLEnv(gym.Env):
             terminal = True
         if self.get_help_reward:
             reward += self._get_help_reward(query)[0]
-        return html_response, reward, terminal, {"slept": self._slept}
+        return html_response, reward, terminal, {}
 
     def _get_help_reward(self, query: str):
         optimal_query = "SELECT * FROM".split(" ") + list("users")
