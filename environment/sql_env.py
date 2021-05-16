@@ -3,6 +3,7 @@ import http.server
 import re
 import sqlite3
 import subprocess
+import time
 import traceback
 import urllib.parse
 import urllib.request
@@ -54,6 +55,14 @@ class SQLEnv(gym.Env):
         self.html = html
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
+
+        self._slept = None
+
+        def fake_sleep(time):
+            print(f"sleep {time}")
+            self._slept = time
+
+        self.connection.create_function("sleep", narg=1, func=fake_sleep)
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, name TEXT, surname TEXT, password TEXT)")
 
@@ -77,10 +86,15 @@ class SQLEnv(gym.Env):
         assert isinstance(query, str)
         code = http.client.OK
         content = ""
+        self._slept = None
+
         # TODO Cursor doesn't owkr.' fix me.
         try:
             # self.cursor.execute("SELECT id, username, name, surname FROM users WHERE id=" + query)
+            start = time.time()
             self.cursor.execute(query)
+            runtime = time.time() - start
+
             content += "<div><span>Result(s):</span></div><table><thead><th>id</th><th>username</th><th>name</th><th>surname</th></thead>" if self.html else ""
             for user in self.cursor.fetchall():
                 content += f"<tr>" if self.html else ""
@@ -88,6 +102,8 @@ class SQLEnv(gym.Env):
                     content += f"<td>{'-' if f is None else f}</td>" if self.html else f"{'-' if f is None else f}\n"
                 content += f"</tr>" if self.html else ""
             content += f"</table>" if self.html else ""
+            runtime += self._slept
+            content += f"query executed in {runtime}" if self.html else f"{runtime}"
         except Exception as ex:
             content += ex.output if isinstance(ex,
                                                subprocess.CalledProcessError) else traceback.format_exc() if self.html else "ERROR"
@@ -96,6 +112,7 @@ class SQLEnv(gym.Env):
         html_response = (constants.HTML_PREFIX + content + constants.HTML_POSTFIX) if self.html else content
 
         terminal = False
+
         if code == http.client.INTERNAL_SERVER_ERROR:
             reward = -0.
         else:
