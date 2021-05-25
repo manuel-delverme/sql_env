@@ -1,0 +1,4 @@
+torch
+gym
+gym-minigrid
+git+git://github.com/ministry-of-silly-code/experiment_buddy.git
