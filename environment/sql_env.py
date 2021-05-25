@@ -105,8 +105,13 @@ class SQLEnv(gym.Env):
             runtime += self._slept
             content += f"query executed in {runtime}" if self.html else f"{runtime}"
         except Exception as ex:
-            content += ex.output if isinstance(ex,
-                                               subprocess.CalledProcessError) else traceback.format_exc() if self.html else "ERROR"
+            if self.html:
+                if isinstance(ex, subprocess.CalledProcessError):
+                    content += ex.output
+                else:
+                    content += traceback.format_exc()
+            else:
+                content += "ERROR"
             code = http.client.INTERNAL_SERVER_ERROR
 
         html_response = (constants.HTML_PREFIX + content + constants.HTML_POSTFIX) if self.html else content
