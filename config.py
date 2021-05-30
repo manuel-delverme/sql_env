@@ -1,27 +1,32 @@
-algo = 'a2c'  # , help='algorithm to use: a2c | ppo | acktr')
-lr = 7e-4  # _, help='learning rate (default: 7e_4)')
-eps = 1e-5  # _, help='RMSprop optimizer epsilon (default: 1e_5)')
-alpha = 0.99  # _, help='RMSprop optimizer apha (default: 0.99)')
-gamma = 0.99  # _, help='discount factor for rewards (default: 0.99)')
-use_gae = False  # _, help='use generalized advantage estimation')
-gae_lambda = 0.95  # _, help='gae lambda parameter (default: 0.95)')
-entropy_coef = 0.01  # _, help='entropy term coefficient (default: 0.01)')
-value_loss_coef = 0.5  # _, help='value loss coefficient (default: 0.5)')
-max_grad_norm = 0.5  # _, help='max norm of gradients (default: 0.5)')
-seed = 1  # _, help='random seed (default: 1)')
-num_processes = 1  # _, help='how many training CPU processes to use (default: 16)')
-num_steps = 5  # _, help='number of forward steps in A2C (default: 5)')
-ppo_epoch = 4  # _, help='number of ppo epochs (default: 4)')
-num_mini_batch = 1  # _, help='number of batches for ppo (default: 32)')
-clip_param = 0.2  # _, help='ppo clip parameter (default: 0.2)')
-log_interval = 10  # _, help='log interval, one log per n updates (default: 10)')
-save_interval = 100  # _, help='save interval, one save per n updates (default: 100)')
-eval_interval = None  # _, help='eval interval, one eval per n updates (default: None)')
-num_env_steps = 10e6  # _, help='number of environment steps to train (default: 10e6)')
-log_dir = '/tmp/gym/'  # _, help='directory to save agent logs (default: /tmp/gym)')
-save_dir = './trained_models/'  # _, help='directory to save agent logs (default: ./trained_models/)')
-no_cuda = False  # _, help='disables CUDA training')
-recurrent_policy = False  # _, help='use a recurrent policy')
-use_linear_lr_decay = False  # _, help='use a linear schedule on the learning rate')
-device = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-env_name = "SQL-v0"
+import sys
+
+import torch
+
+env = "PongNoFrameskip-v4"
+mode = "train"
+xpid = None
+disable_checkpoint = True
+savedir = "~/logs/torchbeast"
+num_actors = 1
+total_steps = 100000
+batch_size = 8
+save_every = int(1e3)
+unroll_length = 80
+num_buffers = max(2 * num_actors, batch_size)  # change this to be larger than both but not smaller
+num_learner_threads = 2
+disable_cuda = True
+use_lstm = True
+seed = 33
+entropy_cost = 0.0006
+baseline_cost = 0.5
+discounting = 0.99
+reward_clipping = "abs_one"
+learning_rate = 0.00048
+alpha = 0.99
+momentum = 0
+epsilon = 0.01
+grad_norm_clipping = 40.0
+DEBUG = sys.gettrace() is not None
+device = torch.device("cpu")
+env_id = "SQL-v0"
+#config_dict = locals()

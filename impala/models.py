@@ -1,91 +1,100 @@
+import typing
+
 import torch
-from torch import nn
+import torch.nn as nn
 from torch.nn import functional as F
 
 
-class AtariNet(nn.Module):
-    def __init__(self, observation_shape, num_actions, use_lstm=False):
-        super(AtariNet, self).__init__()
-        self.observation_shape = observation_shape
-        self.num_actions = num_actions
+class Transition(typing.NamedTuple):
+    state: torch.tensor
+    action: torch.tensor
+    next_state: torch.tensor
+    reward: torch.tensor
+    done: torch.tensor
 
-        self.fc1 = nn.Linear(
-            147,
-            # self.observation_shape[0],
-            out_features=32
-        )
-        # Feature extraction.
-        # self.conv1 = nn.Conv2d(
-        #    in_channels=self.observation_shape[0],
-        #    out_channels=32,
-        #    kernel_size=(3,),
-        #    stride=(1,),
-        # )
-        # self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
-        # self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
 
-        # Fully connected layer.
-        self.fc = nn.Linear(32, 32)
+class Output(typing.NamedTuple):
+    action: torch.tensor
+    policy_logits: torch.tensor
+    value: torch.tensor
 
-        # FC output size + one-hot of last action + last reward.
-        core_output_size = self.fc.out_features + num_actions + 1
 
-        self.use_lstm = use_lstm
-        if use_lstm:
-            self.core = nn.LSTM(core_output_size, core_output_size, 2)
-
-        self.policy = nn.Linear(core_output_size, self.num_actions)
-        self.baseline = nn.Linear(core_output_size, 1)
-
-    def initial_state(self, batch_size):
-        if not self.use_lstm:
-            return tuple()
-        return tuple(
-            torch.zeros(self.core.num_layers, batch_size, self.core.hidden_size)
-            for _ in range(2)
+class Critic(nn.Module):
+    def __init__(self, hidden_size):
+        super().__init__()
+        self.critic = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+            nn.Linear(hidden_size, 1),
         )
 
-    def forward(self, inputs, core_state=()):
-        x = inputs["frame"]  # [T, B, C, H, W].
+
+class MLPBase(nn.Module):
+    def __init__(self, num_inputs, dictionary_size, hidden_size=64):
+        super().__init__()
+        self.body = Body(num_inputs, dictionary_size)
+        self.actor = AutoregressiveActor(hidden_size, hidden_size, dictionary_size)
+        self.critic = Critic(hidden_size)
+        self.train()
+
+    def forward(self, inputs):
+        x = inputs.state
         T, B, *_ = x.shape
         x = torch.flatten(x, 0, 1)  # Merge time and batch.
-        x = x.float().flatten(1)  # / 255.0
-        x = F.relu(self.fc1(x))
-        # x = F.relu(self.conv2(x))
-        # x = F.relu(self.conv3(x))
-        x = x.view(T * B, -1)
-        x = F.relu(self.fc(x))
+        one_hot_last_action = F.one_hot(inputs.action.view(T * B), self.num_actions).float()
+        core_output = torch.cat([x, inputs.reward, one_hot_last_action], dim=-1)
 
-        one_hot_last_action = F.one_hot(
-            inputs["last_action"].view(T * B), self.num_actions
-        ).float()
-        clipped_reward = torch.clamp(inputs["reward"], -1, 1).view(T * B, 1)
-        core_input = torch.cat([x, clipped_reward, one_hot_last_action], dim=-1)
+        hidden = self.body(core_output)
+        action, policy_logits = self.actor(hidden)
+        value = self.value(hidden).view(T, B)
 
-        if self.use_lstm:
-            core_input = core_input.view(T, B, -1)
-            core_output_list = []
-            notdone = (~inputs["done"]).float()
-            for input, nd in zip(core_input.unbind(), notdone.unbind()):
-                # Reset core state to zero whenever an episode ended.
-                # Make `done` broadcastable with (num_layers, B, hidden_size)
-                # states:
-                nd = nd.view(1, -1, 1)
-                core_state = tuple(nd * s for s in core_state)
-                output, core_state = self.core(input.unsqueeze(0), core_state)
-                core_output_list.append(output)
-            core_output = torch.flatten(torch.cat(core_output_list), 0, 1)
-        else:
-            core_output = core_input
-            core_state = tuple()
-
-        policy_logits = self.policy(core_output)
-        baseline = self.baseline(core_output)
-
-        action = torch.multinomial(F.softmax(policy_logits, dim=1), num_samples=1)
-
+        action = torch.multinomial(F.softmax(policy_logits, dim=1), num_samples=1).view(T, B)
         policy_logits = policy_logits.view(T, B, self.num_actions)
-        baseline = baseline.view(T, B)
-        action = action.view(T, B)
+        return Output(action, policy_logits, value)
 
-        return dict(policy_logits=policy_logits, baseline=baseline, action=action), core_state
+
+class Body(nn.Module):
+    def __init__(self, num_inputs, dictionary_size):
+        super(Body, self).__init__()
+        self.gru = nn.GRU(num_inputs, dictionary_size)
+        self.end_of_line = dictionary_size
+
+    def forward(self, inputs):
+        collect = []
+        for x in inputs:
+            assert x.ndim == 2
+            _, rnn_hxs = self.gru(x.unsqueeze(1), None)  # (seq_len, batch, input_size)
+            collect.append(rnn_hxs.squeeze(0))
+        # TODO: this was _x instead of rnn_hxs, but i want to remove the time dimension
+        # TODO fix this with logprop
+        rnn_hxs = torch.cat(collect)
+        return rnn_hxs
+
+
+class AutoregressiveActor(nn.Module):
+    def __init__(self, num_inputs, hidden_size, dictionary_size):
+        super().__init__()
+        self.hidden_to_hidden = nn.Linear(num_inputs, hidden_size)
+        self.hidden_to_output = nn.Linear(hidden_size, dictionary_size)
+
+    def forward(self, hidden, seq_len: int):
+        query = []
+        query_logprobs = []
+
+        for _ in range(seq_len):
+            word_logprobs, rnn_hxs = self._one_step(hidden)
+            word = torch.distributions.Categorical(logits=word_logprobs).sample()
+            query.append(word)
+            query_logprobs.append(word_logprobs)
+        # b x t x k
+        query_logprobs = torch.stack(query_logprobs, dim=1)
+        query = torch.stack(query, dim=1).unsqueeze(-1)
+        assert query.shape[:2] == query_logprobs.shape[:2]
+        return query, query_logprobs
+
+    def one_step(self, hidden):
+        next_hidden = self.hidden_to_hidden(hidden)
+        output = self.hidden_to_output(hidden)
+        output_prob = torch.log_softmax(output, 1)
+
+        return output_prob, next_hidden
