@@ -13,6 +13,5 @@ gym.envs.register(
 gym.envs.register(
     id='SQL-v1',
     entry_point='environment.sql_env2:SQLEnv',
-    max_episode_steps=10,
-    kwargs={'html': False}
+    kwargs={}
 )

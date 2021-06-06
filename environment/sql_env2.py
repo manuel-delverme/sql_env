@@ -16,7 +16,9 @@ import torch.distributions
 import constants
 
 torch.manual_seed(1)
-
+"""
+XXX We might need a new state as it has to remember some things from the previous queries, like the escape character (and maybe the number of rows, but it can also just go directly.)
+"""
 
 class TextSpace(gym.spaces.Space):
     def __init__(self, vocab):
@@ -35,16 +37,6 @@ class TextSpace(gym.spaces.Space):
         return None
 
 
-def fancy_split(query):
-    query_ = []
-    for q in query.split():
-        if q.islower():
-            query_.extend(q)
-        else:
-            query_.append(q)
-    return query_
-
-
 class SQLEnv(gym.Env):
     def render(self, mode='human'):
         pass
@@ -61,10 +53,18 @@ class SQLEnv(gym.Env):
         self.cursor.execute("INSERT INTO flagtable(id, flag) VALUES(NULL, 'flag')")
 
         data = []
+        #To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
+        output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", "", "flagtable", "flag", "None", "and"}
 
         for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
             row = row.findtext("username"), row.findtext("name"), row.findtext("surname"), row.findtext("password")
             data.append(row)
+            output_vocab.update(row)
+            output_vocab.update(str(idx + 1))
+
+        self.observation_space = TextSpace(output_vocab)
+        #Not truly the action space, but mainly to tell the agent what to expect?
+        self.action_space = TextSpace(output_vocab)
 
         self.cursor.executemany("INSERT INTO users(id, username, name, surname, password) VALUES(NULL, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
@@ -73,9 +73,6 @@ class SQLEnv(gym.Env):
         self.reset()
 
 
-    def seed(self, seed = None):
-        self.np_random, seed = seeding.np_random(seed)
-        return [seed]
     def step(self, inquery: str):
         assert isinstance(inquery, str)
         code = http.client.OK
@@ -83,11 +80,11 @@ class SQLEnv(gym.Env):
         query = self.hidden_query.format(input = inquery)
         try:
             self.cursor.execute(query)
-            for user in self.cursor.fetchall():
-                for f in user:
-                    content += f"{'-' if f is None else f}\n"
-            content += f"{runtime}"
+            for some in self.cursor.fetchall():
+                for f in some:
+                    content += str(f) + ";"#"{'-' if f is None else f}\n"
         except Exception as ex:
+            #print(ex)
             content += "ERROR"
             code = http.client.INTERNAL_SERVER_ERROR
 
@@ -112,7 +109,7 @@ class SQLEnv(gym.Env):
         #Picking the escape_character for the hidden query
         self.escape = np.random.choice(3)
         #constructing the hidden query
-        self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE id={0}{1}{0}".format(escape_characters[self.escape], "{input}")
+        self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE id={0}1{1}{0}".format(escape_characters[self.escape], "{input}")
 
         state, _, _, _ = self.step("1")
         return state
