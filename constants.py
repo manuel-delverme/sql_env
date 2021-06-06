@@ -1,10 +1,11 @@
 USERS_XML = """
 <?xml version="1.0" encoding="utf-8"?>
 <users>
-<user id="0"><username>admin</username><name>admin</name><surname>admin</surname><password>7en8aiDoh!</password></user>
-<user id="1"><username>dricci</username><name>dian</name><surname>ricci</surname><password>12345</password></user>
-<user id="2"><username>amason</username><name>anthony</name><surname>mason</surname><password>gandalf</password></user>
-<user id="3"><username>svargas</username><name>sandra</name><surname>vargas</surname><password>phest1945</password></user>
+<user id="0"><username>admin</username><name>admin</name><surname>admin</surname><password>7en8aiDoh!</password><address>The street 2</address></user>
+<user id="1"><username>dricci</username><name>dian</name><surname>ricci</surname><password>12345</password><address>The Boulevard 3</address></user>
+<user id="2"><username>amason</username><name>anthony</name><surname>mason</surname><password>gandalf</password><address>Shirestreet 4</address></user>
+<user id="3"><username>svargas</username><name>sandra</name><surname>vargas</surname><password>phest1945</password><address>Earth 12a</address></user>
+<user id="4"><username>123</username><name>Bob</name><surname>123</surname><password>arklif3</password><address>The island 48</address></user>
 </users>""".strip()
 
 LISTEN_ADDRESS, LISTEN_PORT = "127.0.0.1", 65412
