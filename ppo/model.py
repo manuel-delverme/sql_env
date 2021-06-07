@@ -52,8 +52,12 @@ class Policy(nn.Module):
                     sentence_idxs = []
                     for word in content:
                         sentence_idxs.append(self.query_word_to_idx[word])
+                else:
+                    sentence_idxs = [self.query_word_to_idx[""]]
                 embeds = self.embeddings_in(torch.tensor(sentence_idxs))
                 word_embeddings.append(embeds)
+        #print(self.query_word_to_idx)
+        #print(len(word_embeddings) == len(batch_response),len(batch_response),len(word_embeddings), batch_response)
         assert len(word_embeddings) == len(batch_response)
         return word_embeddings
 

@@ -97,7 +97,8 @@ class SQLEnv(gym.Env):
         if('flag' in content):
             reward += 100
             terminal = True
-        return content, reward, terminal, {}
+        #return content, reward, terminal, {}
+        return content, reward, terminal, {'episode': {'r': reward}}
 
 
     def reset(self):
