@@ -49,10 +49,10 @@ class SQLEnv(gym.Env):
     def render(self, mode='human'):
         pass
 
-    def __init__(self, html):
-
+    def __init__(self, html, second_order=False):
         self.get_help_reward = True
         self.html = html
+        self.second_order = second_order
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
 
@@ -87,6 +87,14 @@ class SQLEnv(gym.Env):
         code = http.client.OK
         content = ""
         self._slept = None
+        if self.second_order:
+            self.cursor.execute("""
+            SELECT birthday 
+            FROM users
+            WHERE strftime('%m-%d',date('now', 'localtime')) = bday
+            """)
+
+
 
         # TODO Cursor doesn't owkr.' fix me.
         try:
