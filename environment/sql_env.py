@@ -115,7 +115,7 @@ class SQLEnv(gym.Env):
         if(self.escape == 0):
             self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE firstname={0}Bob{1}{0}".format(escape_characters[self.escape], "{input}")
         elif(self.escape == 1):
-            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE nationality={0}The Island{1}{0}".format(escape_characters[self.escape], "{input}")
+            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE nationality={0}TI{1}{0}".format(escape_characters[self.escape], "{input}")
         else:
             self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE age={0}33{1}{0}".format(escape_characters[self.escape], "{input}")
 
@@ -127,4 +127,3 @@ class SQLEnv(gym.Env):
 if(__name__ == "__main__"):
     s = SQLEnv()
     s.step("test")
-    print(s.get_params("trsdd"))

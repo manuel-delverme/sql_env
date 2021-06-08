@@ -1,5 +1,6 @@
 We assume the following:
 
-- The flag is just simply called "flag" (We can make this more complicated, but as this is proof of concept this should be fine)
+- The flag containst the word "account" (We can make this more complicated, but as this is proof of concept this should be fine)
 
-- The flag is in a table called flagtable (This is important for the structured approach, but part of the strength of the unstructured approach is that it does not need this assumption.)
+- The flag is in a table called private (This is important for the structured approach, but part of the strength of the unstructured approach is that it does not need this assumption.)
+(Maybe this can also be shorter to make it easier for the unstructured approach maybe just call it p?)
