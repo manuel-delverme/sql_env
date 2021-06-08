@@ -16,7 +16,9 @@ import torch.distributions
 import constants
 
 torch.manual_seed(1)
-
+"""
+XXX We might need a new state as it has to remember some things from the previous queries, like the escape character (and maybe the number of rows, but it can also just go directly.)
+"""
 
 class TextSpace(gym.spaces.Space):
     def __init__(self, vocab):
@@ -35,120 +37,88 @@ class TextSpace(gym.spaces.Space):
         return None
 
 
-def fancy_split(query):
-    query_ = []
-    for q in query.split():
-        if q.islower():
-            query_.extend(q)
-        else:
-            query_.append(q)
-    return query_
-
-
 class SQLEnv(gym.Env):
     def render(self, mode='human'):
         pass
 
-    def __init__(self, html):
-
-        self.get_help_reward = True
-        self.html = html
+    def __init__(self, max_columns = 3):
+        self.max_columns = max_columns
+        #We can use the same database as long as we change the hidden query
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
 
-        self._slept = None
-
-        def fake_sleep(time):
-            print(f"sleep {time}")
-            self._slept = time
-
-        self.connection.create_function("sleep", narg=1, func=fake_sleep)
         self.cursor = self.connection.cursor()
-        self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, name TEXT, surname TEXT, password TEXT)")
+        self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age TEXT, nationality TEXT, logintime TEXT)")
+        self.cursor.execute("CREATE TABLE flagtable(id INTEGER PRIMARY KEY AUTOINCREMENT, flag TEXT)")
+
+        self.cursor.execute("INSERT INTO flagtable(id, flag) VALUES(NULL, 'flag')")
 
         data = []
-        output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
+        #To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
+        output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", "", "flagtable", "flag", "None", "and"}
 
         for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
-            row = row.findtext("username"), row.findtext("name"), row.findtext("surname"), row.findtext("password")
+            row = row.findtext("username"), row.findtext("firstname"), row.findtext("surname"), row.findtext("age"), row.findtext("nationality"), row.findtext("logintime")
             data.append(row)
             output_vocab.update(row)
             output_vocab.update(str(idx + 1))
 
         self.observation_space = TextSpace(output_vocab)
+        #Not truly the action space, but mainly to tell the agent what to expect?
         self.action_space = TextSpace(output_vocab)
-        # output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", ""}
 
-        self.cursor.executemany("INSERT INTO users(id, username, name, surname, password) VALUES(NULL, ?, ?, ?, ?)", data)
+        self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, logintime) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
 
-    def step(self, query: str):
-        assert isinstance(query, str)
+        #We create the hidden_query in the reset function
+        self.reset()
+
+
+    def step(self, inquery: str):
+        assert isinstance(inquery, str)
         code = http.client.OK
         content = ""
-        self._slept = None
-
-        # TODO Cursor doesn't owkr.' fix me.
+        query = self.hidden_query.format(input = inquery)
         try:
-            # self.cursor.execute("SELECT id, username, name, surname FROM users WHERE id=" + query)
-            start = time.time()
             self.cursor.execute(query)
-            runtime = time.time() - start
-
-            content += "<div><span>Result(s):</span></div><table><thead><th>id</th><th>username</th><th>name</th><th>surname</th></thead>" if self.html else ""
-            for user in self.cursor.fetchall():
-                content += f"<tr>" if self.html else ""
-                for f in user:
-                    content += f"<td>{'-' if f is None else f}</td>" if self.html else f"{'-' if f is None else f}\n"
-                content += f"</tr>" if self.html else ""
-            content += f"</table>" if self.html else ""
-            runtime += self._slept
-            content += f"query executed in {runtime}" if self.html else f"{runtime}"
+            for some in self.cursor.fetchall():
+                for f in some:
+                    content += str(f) + ";"#"{'-' if f is None else f}\n"
         except Exception as ex:
-            if self.html:
-                if isinstance(ex, subprocess.CalledProcessError):
-                    content += ex.output
-                else:
-                    content += traceback.format_exc()
-            else:
-                content += "ERROR"
+            #print(ex)
+            content += "ERROR"
             code = http.client.INTERNAL_SERVER_ERROR
-
-        html_response = (constants.HTML_PREFIX + content + constants.HTML_POSTFIX) if self.html else content
 
         terminal = False
 
         if code == http.client.INTERNAL_SERVER_ERROR:
-            reward = -0.
+            reward = -1.
         else:
-            reward = 0.
-        if "7en8aiDoh!" in content in content:
-            reward += 1
+            reward = -.1
+        if('flag' in content):
+            reward += 100
             terminal = True
-        if self.get_help_reward:
-            reward += self._get_help_reward(query)[0]
-        return html_response, reward, terminal, {}
+        #return content, reward, terminal, {}
+        return content, reward, terminal, {'episode': {'r': reward}}
 
-    def _get_help_reward(self, query: str):
-        optimal_query = "SELECT * FROM".split(" ") + list("users")
-        query_ = fancy_split(query)
-        reward = sum(q == oq for q, oq in zip(query_, optimal_query))
-        return reward, reward == 4
 
     def reset(self):
+        columns = ["id", "username", "name", "surname", "address"]
+        escape_characters = ["'", '"',""]
+
+        #Picking the number of columns for the hidden query
+        self.colnum = np.random.choice(self.max_columns)+1
+        #Picking the escape_character for the hidden query
+        self.escape = np.random.choice(3)
+        #constructing the hidden query
+        self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE id={0}1{1}{0}".format(escape_characters[self.escape], "{input}")
+
         state, _, _, _ = self.step("1")
         return state
 
-    def get_params(self, query):
-        params = {}
-        for match in re.finditer(r"((\A|[?&])(?P<parameter>[\w\[\]]+)=)([^&]+)", query):
-            val = urllib.parse.unquote(','.join(re.findall(r"(?:\A|[?&])%s=([^&]+)" % match.group("parameter"), query)))
-            params[match.group("parameter")] = val
-        return params
 
 
-gym.envs.register(
-    id='MyEnv-v0',
-    entry_point='gym.envs.classic_control:MyEnv',
-    max_episode_steps=1000,
-)
+if(__name__ == "__main__"):
+    s = SQLEnv()
+    s.step("test")
+    print(s.get_params("trsdd"))
