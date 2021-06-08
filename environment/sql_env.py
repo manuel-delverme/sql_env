@@ -113,11 +113,11 @@ class SQLEnv(gym.Env):
         #constructing the hidden query
         #Simulating that we are logged in as the dummy user Bob for this attack
         if(self.escape == 0):
-            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE firstname={0}Bob{1}{0}".format(escape_characters[self.escape], "{input}")
+            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE firstname={0}{1}{0}".format(escape_characters[self.escape], "{input}")
         elif(self.escape == 1):
-            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE nationality={0}TI{1}{0}".format(escape_characters[self.escape], "{input}")
+            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE nationality={0}{1}{0}".format(escape_characters[self.escape], "{input}")
         else:
-            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE age={0}33{1}{0}".format(escape_characters[self.escape], "{input}")
+            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE age={0}{1}{0}".format(escape_characters[self.escape], "{input}")
 
         state, _, _, _ = self.step("1")
         return state
