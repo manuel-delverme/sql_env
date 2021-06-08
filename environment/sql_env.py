@@ -48,17 +48,17 @@ class SQLEnv(gym.Env):
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
 
         self.cursor = self.connection.cursor()
-        self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age TEXT, nationality TEXT, logintime TEXT)")
-        self.cursor.execute("CREATE TABLE flagtable(id INTEGER PRIMARY KEY AUTOINCREMENT, flag TEXT)")
+        self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
+        self.cursor.execute("CREATE TABLE private(id INTEGER PRIMARY KEY AUTOINCREMENT, userid INT, account TEXT)")
 
-        self.cursor.execute("INSERT INTO flagtable(id, flag) VALUES(NULL, 'flag')")
+        self.cursor.execute("INSERT INTO private(id, userid, account) VALUES(NULL, 1, 'accountnr:123456')")
 
         data = []
         #To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
-        output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", "", "flagtable", "flag", "None", "and"}
+        output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", "", "private", "account", "None", "and"}
 
         for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
-            row = row.findtext("username"), row.findtext("firstname"), row.findtext("surname"), row.findtext("age"), row.findtext("nationality"), row.findtext("logintime")
+            row = row.findtext("username"), row.findtext("firstname"), row.findtext("surname"), row.findtext("age"), row.findtext("nationality"), row.findtext("created_at")
             data.append(row)
             output_vocab.update(row)
             output_vocab.update(str(idx + 1))
@@ -67,7 +67,7 @@ class SQLEnv(gym.Env):
         #Not truly the action space, but mainly to tell the agent what to expect?
         self.action_space = TextSpace(output_vocab)
 
-        self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, logintime) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
+        self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
 
         #We create the hidden_query in the reset function
@@ -95,7 +95,7 @@ class SQLEnv(gym.Env):
             reward = -1.
         else:
             reward = -.1
-        if('flag' in content):
+        if('account' in content):
             reward += 100
             terminal = True
         #return content, reward, terminal, {}
@@ -103,7 +103,7 @@ class SQLEnv(gym.Env):
 
 
     def reset(self):
-        columns = ["id", "username", "name", "surname", "address"]
+        columns = constants.columns
         escape_characters = ["'", '"',""]
 
         #Picking the number of columns for the hidden query
@@ -111,7 +111,13 @@ class SQLEnv(gym.Env):
         #Picking the escape_character for the hidden query
         self.escape = np.random.choice(3)
         #constructing the hidden query
-        self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE id={0}1{1}{0}".format(escape_characters[self.escape], "{input}")
+        #Simulating that we are logged in as the dummy user Bob for this attack
+        if(self.escape == 0):
+            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE firstname={0}Bob{1}{0}".format(escape_characters[self.escape], "{input}")
+        elif(self.escape == 1):
+            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE nationality={0}The Island{1}{0}".format(escape_characters[self.escape], "{input}")
+        else:
+            self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE age={0}33{1}{0}".format(escape_characters[self.escape], "{input}")
 
         state, _, _, _ = self.step("1")
         return state

