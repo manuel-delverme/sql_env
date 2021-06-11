@@ -10,6 +10,7 @@ import urllib.request
 import xml.etree.ElementTree
 
 import gym.envs
+from gym import spaces
 import numpy as np
 import torch.distributions
 
@@ -20,28 +21,34 @@ torch.manual_seed(1)
 XXX We might need a new state as it has to remember some things from the previous queries, like the escape character (and maybe the number of rows, but it can also just go directly.)
 """
 
-class TextSpace(gym.spaces.Space):
-    def __init__(self, vocab):
-        self.vocab = vocab
-        self.n = len(vocab)
-        super().__init__(shape=(1,), dtype=np.object_)
 
-    def contains(self, x):
-        raise NotImplemented
-
-    def sample(self):
-        raise NotImplemented
-
-    def shape(self):
-        # shapes[key] = box.shape
-        return None
-
-
-class SQLEnv(gym.Env):
+class SQLEnvStructured(gym.Env):
     def render(self, mode='human'):
         pass
 
-    def __init__(self, max_columns):
+    def __init__(self, max_columns = 3):
+        """
+    	Description:
+    		A webserver exposing a query with a potential SQL injection vulnerability. Behind the vulnerability lies a flag.
+    	Observation:
+    		Type: MiltiDiscrete(4)
+    		Num    Observation
+    		0   action tried and returned an error
+            1   action never tried
+    		2   action tried and returned an empty string
+    		3   action tried and returned something
+            (4  action tried and we found the flag)
+    	Actions:
+    		Type: Discrete(n)
+    		Num    Action
+    		n    SQL statement n
+    	Reward:
+    		+100 for capturing the flag, -1 in all the other cases.
+    	Starting State:
+    		Webserver initialized with a random query. No action tested.
+    	Episode Termination:
+    		Capture the flag.
+    	"""
         self.max_columns = max_columns
         #We can use the same database as long as we change the hidden query
         http.server.HTTPServer.allow_reuse_address = True
@@ -63,9 +70,11 @@ class SQLEnv(gym.Env):
             output_vocab.update(row)
             output_vocab.update(str(idx + 1))
 
-        self.observation_space = TextSpace(output_vocab)
         #Not truly the action space, but mainly to tell the agent what to expect?
-        self.action_space = TextSpace(output_vocab)
+        self.action_space = spaces.Discrete(len(constants.structured_actions))
+
+        #Observation Space
+        self.observation_space = spaces.MultiDiscrete(np.ones(len(constants.structured_actions))*4)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
@@ -74,7 +83,9 @@ class SQLEnv(gym.Env):
         self.reset()
 
 
-    def step(self, inquery: str):
+    def step(self, action):
+        assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
+        inquery = constants.structured_actions[action]
         assert isinstance(inquery, str)
         code = http.client.OK
         content = ""
@@ -92,14 +103,22 @@ class SQLEnv(gym.Env):
         terminal = False
 
         if code == http.client.INTERNAL_SERVER_ERROR:
+            response = 0
             reward = -1.
         else:
             reward = -.1
+            if(content == ""):
+                response = 2
+            else:
+                response = 3
         if('account' in content):
-            reward += 100
+            reward = 100
+            response = 3
             terminal = True
+
+        self.state[action] = response
         #return content, reward, terminal, {}
-        return content, reward, terminal, {'episode': {'r': reward}}
+        return self.state, reward, terminal, {'msg': "Server response{}".format(response)}
 
 
     def reset(self):
@@ -107,7 +126,7 @@ class SQLEnv(gym.Env):
         escape_characters = ["'", '"',""]
 
         #Picking the number of columns for the hidden query
-        self.colnum = np.random.choice(self.max_columns-1)+1
+        self.colnum = np.random.choice(self.max_columns)+1
         #Picking the escape_character for the hidden query
         self.escape = np.random.choice(3)
         #constructing the hidden query
@@ -119,8 +138,9 @@ class SQLEnv(gym.Env):
         else:
             self.hidden_query = "SELECT "+", ".join(columns[:self.colnum])+" FROM users WHERE age={0}{1}{0}".format(escape_characters[self.escape], "{input}")
 
-        state, _, _, _ = self.step("1")
-        return state
+        #state, _, _, _ = self.step("1")
+        self.state = np.ones(len(constants.structured_actions))
+        return self.state
 
 
 

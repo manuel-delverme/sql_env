@@ -10,3 +10,8 @@ USERS_XML = """
 
 
 columns = ["id", "username", "firstname", "surname", "age", "nationality", "created_at"]
+max_columns = 3
+
+
+from structured.generate_actions import generate_actions
+structured_actions = generate_actions(max_columns = max_columns)
