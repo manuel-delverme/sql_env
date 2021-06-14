@@ -10,7 +10,7 @@ class Policy(nn.Module):
         super(Policy, self).__init__()
         EMBEDDING_DIM = 10
 
-        action_vocab = set(string.punctuation + " " + string.digits).union({" UNION SELECT ", " NULL ", " FROM "})
+        action_vocab = set(string.ascii_lowercase + " " + string.digits).union({" UNION SELECT ", " NULL ", " FROM "})
         query_vocab = sorted(output_vocab)
         output_vocab = sorted(action_vocab)
 
