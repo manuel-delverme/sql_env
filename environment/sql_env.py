@@ -92,11 +92,11 @@ class SQLEnv(gym.Env):
         terminal = False
 
         if code == http.client.INTERNAL_SERVER_ERROR:
-            reward = -1.
-        else:
             reward = -.1
+        else:
+            reward = -.01
         if('account' in content):
-            reward += 100
+            reward += 1.
             terminal = True
         #return content, reward, terminal, {}
         return content, reward, terminal, {'episode': {'r': reward}}
