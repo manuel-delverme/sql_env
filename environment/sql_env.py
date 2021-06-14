@@ -42,7 +42,11 @@ class SQLEnv(gym.Env):
 
         data = []
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
-        output_vocab = {"near", "syntax", "error", "no", "such", "column", "incomplete", "input", "", "UNK"}  # "\"FROM\":",
+        output_vocab = {
+            "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
+            'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
+            "", "UNK"
+        }  # "\"FROM\":",
         # {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", "", "private", "account", "None", "and"}
 
         # for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
@@ -92,6 +96,9 @@ class SQLEnv(gym.Env):
 
         if "no such column" in content:
             content = "no such column"
+
+        if "unrecognized token" in content:
+            content = "unrecognized token"
 
         out_tokens = content.split(" ")
         if content and set(out_tokens).difference(self.action_space.vocab):
