@@ -1,7 +1,6 @@
 import http.client
 import http.server
 import sqlite3
-import xml.etree.ElementTree
 
 import gym.envs
 import numpy as np
@@ -26,12 +25,12 @@ class TextSpace(gym.spaces.Space):
 
 
 class SQLEnv(gym.Env):
+    max_columns = 3
+
     def render(self, mode='human'):
         pass
 
-    def __init__(self, max_columns):
-        self.max_columns = max_columns
-
+    def __init__(self):
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
 
@@ -43,13 +42,14 @@ class SQLEnv(gym.Env):
 
         data = []
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
-        output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", "", "private", "account", "None", "and"}
+        output_vocab = {"near", "syntax", "error", "no", "such", "column", "incomplete", "input", "", "UNK"}  # "\"FROM\":",
+        # {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", "", "private", "account", "None", "and"}
 
-        for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
-            row = row.findtext("username"), row.findtext("firstname"), row.findtext("surname"), row.findtext("age"), row.findtext("nationality"), row.findtext("created_at")
-            data.append(row)
-            output_vocab.update(row)
-            output_vocab.update(str(idx + 1))
+        # for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
+        #     row = row.findtext("username"), row.findtext("firstname"), row.findtext("surname"), row.findtext("age"), row.findtext("nationality"), row.findtext("created_at")
+        #     data.append(row)
+        #     output_vocab.update(row)
+        #     output_vocab.update(str(idx + 1))
 
         self.observation_space = TextSpace(output_vocab)
         self.action_space = TextSpace(output_vocab)
@@ -73,8 +73,8 @@ class SQLEnv(gym.Env):
                 for f in some:
                     content += str(f) + ";"  # "{'-' if f is None else f}\n"
         except Exception as ex:
-            # content += str(ex)
-            content += "ERROR"
+            content += str(ex)
+            # content += "ERROR"
             http_code = http.client.INTERNAL_SERVER_ERROR
 
         terminal = False
@@ -86,6 +86,17 @@ class SQLEnv(gym.Env):
         if('account' in content):
             reward += 1.
             terminal = True
+
+        if ": syntax error" in content and "near " in content:
+            content = "syntax error"
+
+        if "no such column" in content:
+            content = "no such column"
+
+        out_tokens = content.split(" ")
+        if content and set(out_tokens).difference(self.action_space.vocab):
+            print("UNK", content)
+            content = "UNK"
         return content, reward, terminal, {}
 
     def reset(self):
