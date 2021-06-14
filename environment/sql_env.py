@@ -36,9 +36,9 @@ class SQLEnv(gym.Env):
 
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
-        self.cursor.execute("CREATE TABLE private(id INTEGER PRIMARY KEY AUTOINCREMENT, userid INT, account TEXT)")
+        self.cursor.execute("CREATE TABLE p(id INTEGER PRIMARY KEY AUTOINCREMENT, userid INT, a TEXT)")
 
-        self.cursor.execute("INSERT INTO private(id, userid, account) VALUES(NULL, 1, 'accountnr:123456!')")
+        self.cursor.execute("INSERT INTO p(id, userid, a) VALUES(NULL, 1, 'accountnr:123456!')")
 
         data = []
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
@@ -73,15 +73,14 @@ class SQLEnv(gym.Env):
                     content += str(f) + ";"  # "{'-' if f is None else f}\n"
         except Exception as ex:
             content += str(ex)
-            # content += "ERROR"
             http_code = http.client.INTERNAL_SERVER_ERROR
 
         terminal = False
 
         if http_code == http.client.INTERNAL_SERVER_ERROR:
-            reward = -.1
+            reward = -1
         else:
-            reward = -.01
+            reward = -.1
         if 'account' in content and '!' in content:
             reward += 1.
             terminal = True
