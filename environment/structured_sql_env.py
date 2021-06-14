@@ -96,7 +96,7 @@ class SQLEnvStructured(gym.Env):
 
         if code == http.client.INTERNAL_SERVER_ERROR:
             response = 0
-            reward = -1.
+            reward = -.1
         else:
             reward = -.1
             if (content == ""):
@@ -104,7 +104,7 @@ class SQLEnvStructured(gym.Env):
             else:
                 response = 3
         if ('account' in content):
-            reward = 100
+            reward = 1
             response = 3
             terminal = True
 
