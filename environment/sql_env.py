@@ -79,7 +79,7 @@ class SQLEnv(gym.Env):
 
         terminal = False
 
-        if code == http.client.INTERNAL_SERVER_ERROR:
+        if http_code == http.client.INTERNAL_SERVER_ERROR:
             reward = -.1
         else:
             reward = -.01
@@ -96,6 +96,6 @@ class SQLEnv(gym.Env):
             "nationality=\"{input}\"",
             "age={input}",
         ])
-        self.query_template = f"SELECT {selected_columns} FROM users WHERE = {hidden_parameter}"
+        self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
         state, _, _, _ = self.step("1")
         return state

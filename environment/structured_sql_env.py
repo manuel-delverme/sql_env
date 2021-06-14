@@ -12,7 +12,6 @@ import constants
 from structured.generate_actions import generate_actions
 
 torch.manual_seed(1)
-structured_actions = generate_actions(max_columns=constants.max_columns)
 
 
 class SQLEnvStructured(gym.Env):
@@ -43,6 +42,7 @@ class SQLEnvStructured(gym.Env):
             Capture the flag.
         """
         self.max_columns = max_columns
+        self.structured_actions = generate_actions(max_columns=constants.max_columns)
         # We can use the same database as long as we change the hidden query
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
@@ -64,10 +64,10 @@ class SQLEnvStructured(gym.Env):
             output_vocab.update(str(idx + 1))
 
         # Not truly the action space, but mainly to tell the agent what to expect?
-        self.action_space = spaces.Discrete(len(structured_actions))
+        self.action_space = spaces.Discrete(len(self.structured_actions))
 
         # Observation Space
-        self.observation_space = spaces.MultiDiscrete(np.ones(len(constants.structured_actions)) * 4)
+        self.observation_space = spaces.MultiDiscrete(np.ones(len(self.structured_actions)) * 4)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
@@ -77,7 +77,7 @@ class SQLEnvStructured(gym.Env):
 
     def step(self, action):
         assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
-        inquery = structured_actions[action]
+        inquery = self.structured_actions[action]
         assert isinstance(inquery, str)
         code = http.client.OK
         content = ""
@@ -130,5 +130,5 @@ class SQLEnvStructured(gym.Env):
             self.hidden_query = "SELECT " + ", ".join(columns[:self.colnum]) + " FROM users WHERE age={0}{1}{0}".format(escape_characters[self.escape], "{input}")
 
         # state, _, _, _ = self.step("1")
-        self.state = np.ones(len(structured_actions))
+        self.state = np.ones(len(self.structured_actions))
         return self.state
