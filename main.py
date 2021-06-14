@@ -4,13 +4,13 @@ from collections import deque
 
 import numpy as np
 import torch
+import wandb
 
 import config
 import environment  # noqa
 import ppo.model
 from ppo import utils
 from ppo.envs import make_vec_envs
-from ppo.evaluation import evaluate
 from ppo.storage import RolloutStorage
 
 
@@ -43,12 +43,21 @@ def main():
     start = time.time()
     num_updates = int(config.num_env_steps) // config.num_steps // config.num_processes
 
+    # text_table = config.tb.run.Table(columns=["epoch", "query"])
+    data = []
+
     for network_updates in range(num_updates):
         for step in range(config.num_steps):
             with torch.no_grad():
                 value, batch_queries, action_log_prob = actor_critic.act(rollouts.obs[step])
 
-            obs, reward, done, infos = envs.step(["".join(query) for query in batch_queries])
+            queries = ["".join(query) for query in batch_queries]
+
+            obs, reward, done, infos = envs.step(queries)
+
+            if step % config.log_interval == 0:
+                data.extend([[step, q, r] for q, r in zip(queries, reward)])
+                config.tb.run.log({"train_queries": wandb.Table(columns=["step", "query", "reward"], data=data)})
 
             for info in infos:
                 if 'episode' in info.keys():
