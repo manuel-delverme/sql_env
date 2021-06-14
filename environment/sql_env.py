@@ -25,7 +25,7 @@ class TextSpace(gym.spaces.Space):
 
 
 class SQLEnv(gym.Env):
-    max_columns = 3
+    max_columns = constants.max_columns
 
     def render(self, mode='human'):
         pass
@@ -38,7 +38,7 @@ class SQLEnv(gym.Env):
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
         self.cursor.execute("CREATE TABLE private(id INTEGER PRIMARY KEY AUTOINCREMENT, userid INT, account TEXT)")
 
-        self.cursor.execute("INSERT INTO private(id, userid, account) VALUES(NULL, 1, 'accountnr:123456')")
+        self.cursor.execute("INSERT INTO private(id, userid, account) VALUES(NULL, 1, 'accountnr:123456!')")
 
         data = []
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
@@ -83,7 +83,7 @@ class SQLEnv(gym.Env):
             reward = -.1
         else:
             reward = -.01
-        if('account' in content):
+        if 'account' in content and '!' in content:
             reward += 1.
             terminal = True
 
