@@ -68,23 +68,16 @@ def main():
 
         # save for every interval-th episode or for the last epoch
         if network_updates % config.save_interval == 0 or network_updates == num_updates - 1:
-            save_path = config.save_dir
-            try:
-                os.makedirs(save_path)
-            except OSError:
-                pass
-            torch.save([actor_critic, getattr(utils.get_vec_normalize(envs), 'obs_rms', None)], save_path + ".pt")
+            config.tb.add_object("model", actor_critic, global_step=network_updates)
 
         if network_updates % config.log_interval == 0 and len(episode_rewards) > 1:
             total_num_steps = (network_updates + 1) * config.num_processes * config.num_steps
             end = time.time()
-            print("Updates {}, num timesteps {}, FPS {} \n Last {} training episodes: mean/median reward {:.1f}/{:.1f}, min/max reward {:.1f}/{:.1f}\n"
-                  .format(network_updates, total_num_steps, int(total_num_steps / (end - start)), len(episode_rewards), np.mean(episode_rewards),
-                          np.median(episode_rewards), np.min(episode_rewards), np.max(episode_rewards), dist_entropy, value_loss, action_loss))
-
-        if config.eval_interval is not None and len(episode_rewards) > 1 and network_updates % config.eval_interval == 0:
-            obs_rms = utils.get_vec_normalize(envs).obs_rms
-            evaluate(actor_critic, obs_rms, config.env_name, config.seed, config.num_processes, eval_log_dir, config.device)
+            config.tb.add_scalar("train/fps", int(total_num_steps / (end - start)), global_step=network_updates)
+            config.tb.add_scalar("tran/avg_rw", np.mean(episode_rewards), global_step=network_updates)
+            config.tb.add_scalar("train/entropy", dist_entropy, global_step=network_updates)
+            config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
+            config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
 
 
 if __name__ == "__main__":
