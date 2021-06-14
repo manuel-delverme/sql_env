@@ -22,7 +22,7 @@ log_interval = 10  # _, help='log interval, one log per n updates (default: 10)'
 save_interval = 100  # _, help='save interval, one save per n updates (default: 100)')
 rate_limit = 30  # _, help='save interval, one save per n updates (default: 100)')
 eval_interval = None  # _, help='eval interval, one eval per n updates (default: None)')
-num_env_steps = 10e3  # _, help='number of environment steps to train (default: 10e6)')
+num_env_steps = 1e6  # _, help='number of environment steps to train (default: 10e6)')
 log_dir = '/tmp/gym/'  # _, help='directory to save agent logs (default: /tmp/gym)')
 save_dir = './trained_models/'  # _, help='directory to save agent logs (default: ./trained_models/)')
 no_cuda = False  # _, help='disables CUDA training')

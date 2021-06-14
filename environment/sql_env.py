@@ -102,7 +102,7 @@ class SQLEnv(gym.Env):
 
         out_tokens = content.split(" ")
         if content and set(out_tokens).difference(self.action_space.vocab):
-            print("UNK", content)
+            print("UNK", content, input_query)
             content = "UNK"
         return content, reward, terminal, {}
 
