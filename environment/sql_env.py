@@ -45,15 +45,10 @@ class SQLEnv(gym.Env):
         output_vocab = {
             "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
             'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
+            *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
+            *"Incorrect number of bindings supplied".split(),
             "", "UNK"
-        }  # "\"FROM\":",
-        # {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", "", "private", "account", "None", "and"}
-
-        # for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
-        #     row = row.findtext("username"), row.findtext("firstname"), row.findtext("surname"), row.findtext("age"), row.findtext("nationality"), row.findtext("created_at")
-        #     data.append(row)
-        #     output_vocab.update(row)
-        #     output_vocab.update(str(idx + 1))
+        }
 
         self.observation_space = TextSpace(output_vocab)
         self.action_space = TextSpace(output_vocab)
@@ -100,9 +95,16 @@ class SQLEnv(gym.Env):
         if "unrecognized token" in content:
             content = "unrecognized token"
 
+        if "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
+            content = "SELECTs to the left and right of UNION do not have the same number of result columns"
+
+        if "Incorrect number of bindings supplied" in content:
+            content = "Incorrect number of bindings supplied"
+
         out_tokens = content.split(" ")
         if content and set(out_tokens).difference(self.action_space.vocab):
             print("UNK", content)
+            print("Q:", input_query)
             content = "UNK"
         return content, reward, terminal, {}
 
