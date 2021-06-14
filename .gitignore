@@ -103,3 +103,8 @@ venv.bak/
 
 trained_models/
 .fuse_hidden*
+
+runs
+.idea
+wandb
+tags

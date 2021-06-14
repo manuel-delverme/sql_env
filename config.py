@@ -1,4 +1,8 @@
-algo = 'a2c'  # , help='algorithm to use: a2c | ppo | acktr')
+import sys
+
+import experiment_buddy
+import getpass
+
 lr = 7e-4  # _, help='learning rate (default: 7e_4)')
 eps = 1e-5  # _, help='RMSprop optimizer epsilon (default: 1e_5)')
 alpha = 0.99  # _, help='RMSprop optimizer apha (default: 0.99)')
@@ -25,3 +29,11 @@ recurrent_policy = False  # _, help='use a recurrent policy')
 use_linear_lr_decay = False  # _, help='use a linear schedule on the learning rate')
 device = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 env_name = "SQL-v1"
+user = getpass.getuser()
+
+experiment_buddy.register(locals())
+HOST = "mila" if user in ("d3sm0", "esac") else ""
+DEBUG = sys.gettrace() is not None
+PROC_NUM = 1
+tb = experiment_buddy.deploy(host=HOST, sweep_yaml="",
+                             wandb_kwargs={"mode": "disabled" if DEBUG else "online", "entity": "rl-sql"})
