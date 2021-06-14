@@ -12,9 +12,9 @@ class TestEnv(TestCase):
         self.assertIn("ERROR", state)
 
     def test_solution(self):
-        env = SQLEnv(html=True)
+        env = SQLEnv()
         env.reset()
-        _, _, done, _ = env.step("SELECT * FROM users")
+        _, _, done, _ = env.step("1 UNION SELECT account FROM private")
         self.assertTrue(done)
 
     def test_html(self):

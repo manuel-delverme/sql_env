@@ -9,7 +9,6 @@ gym.envs.register(
     id='SQL-v1',
     entry_point='environment.sql_env:SQLEnv',
     max_episode_steps=10,
-    kwargs={"max_columns": constants.max_columns}
 )
 
 gym.envs.register(
