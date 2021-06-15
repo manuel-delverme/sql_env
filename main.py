@@ -25,8 +25,7 @@ def main():
     utils.cleanup_log_dir(eval_log_dir)
 
     torch.set_num_threads(1)
-    envs = make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir,
-                         config.device, False, target_query_length=config.target_query_length)
+    envs = make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir, config.device, False)
 
     actor_critic = ppo.model.Policy(envs.observation_space.shape, envs.action_space.vocab,
                                     envs.action_space.sequence_length, eps=config.eps).to(config.device)
