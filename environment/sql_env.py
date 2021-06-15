@@ -54,7 +54,7 @@ class SQLEnv(gym.Env):
 
         self.observation_space = TextSpace(output_vocab)
 
-        self.target_query_length = 2
+        self.target_query_length = 3
         self.action_space = TextSpace(output_vocab, self.target_query_length)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
@@ -66,7 +66,6 @@ class SQLEnv(gym.Env):
     def step(self, input_query: str):
         assert isinstance(input_query, str)
         # We can use the same database as long as we change the hidden query
-        print(input_query)
 
         cols = self.query_template.split(" FROM ")[0].count(',')
         if "firstname='{input}'" in self.query_template:
@@ -98,8 +97,6 @@ class SQLEnv(gym.Env):
         #     reward = -.1
         if 'account' in content and '!' in content:
             reward = 1.
-            print("=" * 20)
-            print(content)
             terminal = True
 
         if ": syntax error" in content and "near " in content:
