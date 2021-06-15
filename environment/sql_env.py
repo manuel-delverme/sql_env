@@ -54,7 +54,7 @@ class SQLEnv(gym.Env):
 
         self.observation_space = TextSpace(output_vocab)
 
-        self.target_query_length = 3
+        self.target_query_length = 5
         self.action_space = TextSpace(output_vocab, self.target_query_length)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
@@ -91,7 +91,7 @@ class SQLEnv(gym.Env):
 
         terminal = False
 
-        reward = -1
+        reward = 0.
         # if http_code == http.client.INTERNAL_SERVER_ERROR:
         # else:
         #     reward = -.1
@@ -125,6 +125,7 @@ class SQLEnv(gym.Env):
         return content, reward, terminal, {}
 
     def reset(self):
+        np.random.seed(0)
         columns = np.random.randint(1, self.max_columns + 1)
         selected_columns = ", ".join(constants.columns[:columns])
         hidden_parameter = np.random.choice([

@@ -14,7 +14,7 @@ value_loss_coef = 0.5  # _, help='value loss coefficient (default: 0.5)')
 max_grad_norm = 0.5  # _, help='max norm of gradients (default: 0.5)')
 seed = 1  # _, help='random seed (default: 1)')
 num_processes = 1  # _, help='how many training CPU processes to use (default: 16)')
-num_steps = 5  # _, help='number of forward steps in A2C (default: 5)')
+num_steps = 30  # _, help='number of forward steps in A2C (default: 5)')
 ppo_epoch = 4  # _, help='number of ppo epochs (default: 4)')
 num_mini_batch = 1  # _, help='number of batches for ppo (default: 32)')
 clip_param = 0.2  # _, help='ppo clip parameter (default: 0.2)')
@@ -36,4 +36,5 @@ HOST = "mila" if user in ("d3sm0", "esac") else ""
 DEBUG = sys.gettrace() is not None
 PROC_NUM = 1
 tb = experiment_buddy.deploy(host=HOST, sweep_yaml="",
-                             wandb_kwargs={"mode": "disabled" if DEBUG else "online", "entity": "rl-sql"})
+                             wandb_kwargs={"mode": "disabled",  # if DEBUG else "online",
+                                           "entity": "rl-sql"})

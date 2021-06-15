@@ -118,6 +118,8 @@ class MLPBase(nn.Module):
         for _ in range(self._query_length):
             word_logprobs, rnn_hxs = self.actor(rnn_hxs)
             word = torch.distributions.Categorical(logits=word_logprobs).sample()
+            if torch.rand((1,)) < 0.1:
+                word = torch.distributions.Categorical(logits=torch.ones_like(word_logprobs)).sample()
             query.append(word)
             query_logprobs.append(word_logprobs)
         # b x t x k
