@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+import ppo.model
 from environment.sql_env import SQLEnv
 
 
@@ -14,7 +15,20 @@ class TestEnv(TestCase):
     def test_solution(self):
         env = SQLEnv()
         env.reset()
-        _, _, done, _ = env.step("1 UNION SELECT account FROM private")
+        cols = env.query_template.split(" FROM ")[0].count(',')
+        if "firstname='{input}'" in env.query_template:
+            escape = "'"
+        elif "nationality=\"{input}\"" in env.query_template:
+            escape = '"'
+        else:
+            escape = ''
+
+        solution = ["1", escape, " UNION SELECT ", *([" NULL, "] * cols), "a", " FROM ", "p", " -- "]
+
+        for s in solution:
+            self.assertIn(s, ppo.model.Policy.output_vocab)
+
+        _, _, done, _ = env.step("".join(solution))
         self.assertTrue(done)
 
     def test_html(self):
