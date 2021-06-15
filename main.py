@@ -25,12 +25,15 @@ def main():
     utils.cleanup_log_dir(eval_log_dir)
 
     torch.set_num_threads(1)
-    envs = make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir, config.device, False)
+    envs = make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir,
+                         config.device, False)
 
-    actor_critic = ppo.model.Policy(envs.observation_space.shape, envs.action_space.vocab, envs.action_space.sequence_length).to(config.device)
+    actor_critic = ppo.model.Policy(envs.observation_space.shape, envs.action_space.vocab,
+                                    envs.action_space.sequence_length, eps=config.eps).to(config.device)
 
     agent = ppo.PPO(
-        actor_critic, config.clip_param, config.ppo_epoch, config.num_mini_batch, config.value_loss_coef, config.entropy_coef, lr=config.lr, eps=config.eps,
+        actor_critic, config.clip_param, config.ppo_epoch, config.num_mini_batch, config.value_loss_coef,
+        config.entropy_coef, lr=config.lr, eps=config.eps,
         max_grad_norm=config.max_grad_norm)
 
     rollouts = RolloutStorage(config.num_steps, config.num_processes, envs.observation_space.shape, envs.action_space)
@@ -55,7 +58,8 @@ def main():
             obs, reward, done, infos = envs.step(queries)
 
             if network_updates % config.log_query_interval == 0 and network_updates:
-                data.extend([[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
+                data.extend(
+                    [[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
 
             for info in infos:
                 if 'episode' in info.keys():
@@ -67,7 +71,8 @@ def main():
             rollouts.insert(obs, batch_queries, action_log_prob, value, reward, masks)
 
         if network_updates % config.log_query_interval == 0 and network_updates:
-            config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
+            config.tb.run.log({"train_queries": wandb.Table(
+                columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
         next_value = torch.zeros_like(next_value)

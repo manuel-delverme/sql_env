@@ -96,7 +96,7 @@ class SQLEnv(gym.Env):
 
         terminal = False
 
-        reward = -1
+        reward = 0.
         # if http_code == http.client.INTERNAL_SERVER_ERROR:
         # else:
         #     reward = -.1
