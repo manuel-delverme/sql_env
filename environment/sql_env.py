@@ -35,7 +35,8 @@ class SQLEnv(gym.Env):
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
 
         self.cursor = self.connection.cursor()
-        self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
+        self.cursor.execute(
+            "CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
         self.cursor.execute("CREATE TABLE p(id INTEGER PRIMARY KEY AUTOINCREMENT, userid INT, a TEXT)")
 
         self.cursor.execute("INSERT INTO p(id, userid, a) VALUES(NULL, 1, 'accountnr:123456!')")
@@ -53,7 +54,9 @@ class SQLEnv(gym.Env):
         self.observation_space = TextSpace(output_vocab)
         self.action_space = TextSpace(output_vocab)
 
-        self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
+        self.cursor.executemany(
+            "INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)",
+            data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
 
         self.query_template = None
@@ -108,14 +111,16 @@ class SQLEnv(gym.Env):
         return content, reward, terminal, {}
 
     def reset(self):
+        np.random.seed(0)
         columns = np.random.randint(1, self.max_columns + 1)
         selected_columns = ", ".join(constants.columns[:columns])
-        hidden_parameter = np.random.choice([
-            "firstname='{input}'",
-            "nationality=\"{input}\"",
-            "age={input}",
-        ])
+        hidden_parameter = "age={input}"
+        # hidden_parameter = np.random.choice([
+        #    "firstname='{input}'",
+        #    "nationality=\"{input}\"",
+        # ])
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
         # 1' UNION SELECT a, NULL, NULL FROM p --
+        print(self.query_template)
         state, _, _, _ = self.step("1")
         return state

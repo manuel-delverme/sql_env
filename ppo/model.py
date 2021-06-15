@@ -86,7 +86,7 @@ class Policy(nn.Module):
 
 
 class MLPBase(nn.Module):
-    def __init__(self, num_inputs, dictionary_size, hidden_size=64):
+    def __init__(self, num_inputs, dictionary_size, hidden_size=64, max_tokens=9):
         super().__init__()
         self._hidden_size = hidden_size
         self.gru = nn.GRU(num_inputs, hidden_size)
@@ -99,6 +99,7 @@ class MLPBase(nn.Module):
             nn.Linear(hidden_size, 1),
         )
         self.train()
+        self.max_tokens = max_tokens
 
     def forward(self, inputs):
         collect = []
@@ -113,7 +114,7 @@ class MLPBase(nn.Module):
         query = []
         query_logprobs = []
 
-        for _ in range(8):
+        for _ in range(self.max_tokens):
             word_logprobs, rnn_hxs = self.actor(rnn_hxs)
             word = torch.distributions.Categorical(logits=word_logprobs).sample()
             query.append(word)
