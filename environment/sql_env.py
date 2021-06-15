@@ -54,7 +54,7 @@ class SQLEnv(gym.Env):
 
         self.observation_space = TextSpace(output_vocab)
 
-        self.target_query_length = 5
+        self.target_query_length = 9
         self.action_space = TextSpace(output_vocab, self.target_query_length)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
@@ -96,7 +96,7 @@ class SQLEnv(gym.Env):
 
         terminal = False
 
-        reward = -1
+        reward = 0.
         # if http_code == http.client.INTERNAL_SERVER_ERROR:
         # else:
         #     reward = -.1
@@ -104,8 +104,8 @@ class SQLEnv(gym.Env):
             reward = 1.
             terminal = True
 
-        for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
-            reward += 0.1 * float(i.isupper() == s.isupper())
+        #for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
+        #    reward += 0.1 * float(i.isupper() == s.isupper())
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"

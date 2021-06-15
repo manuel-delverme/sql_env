@@ -25,12 +25,15 @@ def main():
     utils.cleanup_log_dir(eval_log_dir)
 
     torch.set_num_threads(1)
-    envs = make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir, config.device, False)
+    envs = make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir,
+                         config.device, False, target_query_length=config.target_query_length)
 
-    actor_critic = ppo.model.Policy(envs.observation_space.shape, envs.action_space.vocab, envs.action_space.sequence_length).to(config.device)
+    actor_critic = ppo.model.Policy(envs.observation_space.shape, envs.action_space.vocab,
+                                    envs.action_space.sequence_length, eps=config.eps).to(config.device)
 
     agent = ppo.PPO(
-        actor_critic, config.clip_param, config.ppo_epoch, config.num_mini_batch, config.value_loss_coef, config.entropy_coef, lr=config.lr, eps=config.eps,
+        actor_critic, config.clip_param, config.ppo_epoch, config.num_mini_batch, config.value_loss_coef,
+        config.entropy_coef, lr=config.lr, eps=config.eps,
         max_grad_norm=config.max_grad_norm)
 
     rollouts = RolloutStorage(config.num_steps, config.num_processes, envs.observation_space.shape, envs.action_space)

@@ -24,9 +24,10 @@ except ImportError:
     pass
 
 
-def make_env(env_id, seed, rank, log_dir, allow_early_resets):
+def make_env(env_id, seed, rank, log_dir, allow_early_resets, target_query_length):
     def _thunk():
         env = gym.make(env_id)
+        env.unwrapped.target_query_length = target_query_length
         env.seed(seed + rank)
 
         if log_dir is not None:
@@ -36,8 +37,9 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     return _thunk
 
 
-def make_vec_envs(env_name, seed, num_processes, gamma, log_dir, device, allow_early_resets, num_frame_stack=None):
-    envs = [make_env(env_name, seed, i, log_dir, allow_early_resets) for i in range(num_processes)]
+def make_vec_envs(env_name, seed, num_processes, gamma, log_dir, device, allow_early_resets, num_frame_stack=None,
+                  target_query_length=9):
+    envs = [make_env(env_name, seed, i, log_dir, allow_early_resets, target_query_length) for i in range(num_processes)]
 
     if len(envs) > 1:
         envs = SubprocVecEnv(envs)
@@ -133,7 +135,8 @@ class VecNormalize(VecNormalize_):
         if self.obs_rms:
             if self.training and update:
                 self.obs_rms.update(obs)
-            obs = np.clip((obs - self.obs_rms.mean) / np.sqrt(self.obs_rms.var + self.epsilon), -self.clipob, self.clipob)
+            obs = np.clip((obs - self.obs_rms.mean) / np.sqrt(self.obs_rms.var + self.epsilon), -self.clipob,
+                          self.clipob)
             return obs
         else:
             return obs

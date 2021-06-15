@@ -1,0 +1,8 @@
+program: main.py
+method: grid
+metric:
+  name: "tran/avg_rw"
+  goal: maximize
+parameters:
+  target_query_length:
+    values: [6, 7, 8, 9]
