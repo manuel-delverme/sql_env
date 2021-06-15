@@ -54,7 +54,7 @@ class SQLEnv(gym.Env):
 
         self.observation_space = TextSpace(output_vocab)
 
-        self.target_query_length = 3
+        self.target_query_length = 4
         self.action_space = TextSpace(output_vocab, self.target_query_length)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
@@ -75,11 +75,11 @@ class SQLEnv(gym.Env):
         else:
             escape = ''
         solution = ["1", escape, " UNION SELECT ", *([" NULL, "] * cols), "a", " FROM ", "p", " -- "]
-        input_query = "".join(solution[:-self.target_query_length]) + input_query
+        completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
 
         http_code = http.client.OK
         content = ""
-        query = self.query_template.format(input=input_query)
+        query = self.query_template.format(input=completed_input_query)
         try:
             self.cursor.execute(query)
             for some in self.cursor.fetchall():
@@ -98,6 +98,9 @@ class SQLEnv(gym.Env):
         if 'account' in content and '!' in content:
             reward = 1.
             terminal = True
+
+        for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
+            reward += 0.1 * float(i.isupper() == s.isupper())
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
