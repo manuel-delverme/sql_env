@@ -79,10 +79,10 @@ class SQLEnv(gym.Env):
 
         if http_code == http.client.INTERNAL_SERVER_ERROR:
             reward = -1
-        else:
-            reward = -.1
-        if 'account' in content and '!' in content:
-            reward += 1.
+        # else:
+        #     reward = -.1
+        elif 'account' in content and '!' in content:
+            reward = 1.
             terminal = True
 
         if ": syntax error" in content and "near " in content:

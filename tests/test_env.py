@@ -14,7 +14,7 @@ class TestEnv(TestCase):
     def test_solution(self):
         env = SQLEnv()
         env.reset()
-        _, _, done, _ = env.step("1 UNION SELECT account FROM private")
+        _, _, done, _ = env.step("1 UNION SELECT a FROM p")
         self.assertTrue(done)
 
     def test_html(self):
