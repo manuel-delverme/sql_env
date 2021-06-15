@@ -54,7 +54,7 @@ def main():
             queries = ["".join(query) for query in batch_queries]
             obs, reward, done, infos = envs.step(queries)
 
-            if network_updates % config.log_interval == 0:
+            if network_updates % config.log_query_interval == 0:
                 data.extend([[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
 
             for info in infos:
@@ -66,7 +66,7 @@ def main():
 
             rollouts.insert(obs, batch_queries, action_log_prob, value, reward, masks)
 
-        if network_updates % config.log_interval == 0:
+        if network_updates % config.log_query_interval == 0:
             config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()

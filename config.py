@@ -19,6 +19,7 @@ ppo_epoch = 4  # _, help='number of ppo epochs (default: 4)')
 num_mini_batch = 1  # _, help='number of batches for ppo (default: 32)')
 clip_param = 0.2  # _, help='ppo clip parameter (default: 0.2)')
 log_interval = 100
+log_query_interval = 10_000
 save_interval = 10000  # _, help='save interval, one save per n updates (default: 100)')
 eval_interval = None  # _, help='eval interval, one eval per n updates (default: None)')
 num_env_steps = 1e6  # _, help='number of environment steps to train (default: 10e6)')
