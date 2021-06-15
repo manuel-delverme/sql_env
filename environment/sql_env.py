@@ -75,29 +75,36 @@ class SQLEnv(gym.Env):
         else:
             escape = ''
         solution = ["1", escape, " UNION SELECT ", *([" NULL, "] * cols), "a", " FROM ", "p", " -- "]
-        input_query = "".join(solution[:-self.target_query_length]) + input_query
+        completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
 
         http_code = http.client.OK
         content = ""
-        query = self.query_template.format(input=input_query)
+        found_flag = False
+        query = self.query_template.format(input=completed_input_query)
+
         try:
             self.cursor.execute(query)
             for some in self.cursor.fetchall():
                 for f in some:
-                    content += str(f) + ";"  # "{'-' if f is None else f}\n"
+                    # content += str(f) + ";"  # "{'-' if f is None else f}\n"
+                    f = str(f)
+                    if 'account' in f and '!' in f:
+                        found_flag = True
         except Exception as ex:
             content += str(ex)
             http_code = http.client.INTERNAL_SERVER_ERROR
 
         terminal = False
-
         reward = -1
         # if http_code == http.client.INTERNAL_SERVER_ERROR:
         # else:
         #     reward = -.1
-        if 'account' in content and '!' in content:
+        if found_flag:
             reward = 1.
             terminal = True
+
+        for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
+            reward += 0.1 * float(i.isupper() == s.isupper())
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
@@ -121,8 +128,8 @@ class SQLEnv(gym.Env):
 
         if content and set(out_tokens).difference(self.action_space.vocab):
             if not terminal:
-                print("UNK", content)
-                print("Q:", input_query)
+                print("Query: ", input_query)
+                print("returns: ", content)
             content = "UNK"
 
         return content, reward, terminal, {}
