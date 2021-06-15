@@ -108,6 +108,7 @@ class SQLEnv(gym.Env):
         return content, reward, terminal, {}
 
     def reset(self):
+        np.random.seed(0)
         columns = np.random.randint(1, self.max_columns + 1)
         selected_columns = ", ".join(constants.columns[:columns])
         hidden_parameter = np.random.choice([
