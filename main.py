@@ -44,7 +44,6 @@ def main():
     start = time.time()
     num_updates = int(config.num_env_steps) // config.num_steps // config.num_processes
 
-    # text_table = config.tb.run.Table(columns=["epoch", "query"])
     data = []
 
     for network_updates in tqdm.trange(num_updates):
