@@ -55,8 +55,8 @@ def main():
             obs, reward, done, infos = envs.step(queries)
 
             if network_updates % config.log_interval == 0:
-                data.extend([[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
-                config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
+                data.extend(
+                    [[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
 
             for info in infos:
                 if 'episode' in info.keys():
@@ -67,25 +67,29 @@ def main():
 
             rollouts.insert(obs, batch_queries, action_log_prob, value, reward, masks)
 
+        if network_updates % config.log_interval == 0:
+            config.tb.run.log({"train_queries": wandb.Table(
+                columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
 
         rollouts.compute_returns(next_value, config.use_gae, config.gamma, config.gae_lambda)
-        value_loss, action_loss, dist_entropy = agent.update(rollouts)
+        value_loss, action_loss, dist_entropy, grad_norm_batch= agent.update(rollouts)
         rollouts.after_update()
 
         # save for every interval-th episode or for the last epoch
         if network_updates % config.save_interval == 0 or network_updates == num_updates - 1:
             config.tb.add_object("model", actor_critic, global_step=network_updates)
 
-        if network_updates % config.log_interval == 0 and len(episode_rewards) > 1:
-            total_num_steps = (network_updates + 1) * config.num_processes * config.num_steps
-            end = time.time()
-            config.tb.add_scalar("train/fps", int(total_num_steps / (end - start)), global_step=network_updates)
-            config.tb.add_scalar("tran/avg_rw", np.mean(episode_rewards), global_step=network_updates)
-            config.tb.add_scalar("train/entropy", dist_entropy, global_step=network_updates)
-            config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
-            config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
+        #if network_updates % config.log_interval == 0 and len(episode_rewards) > 1:
+        total_num_steps = (network_updates + 1) * config.num_processes * config.num_steps
+        end = time.time()
+        config.tb.add_scalar("train/grad_norm",grad_norm_batch, global_step=network_updates)
+        config.tb.add_scalar("train/fps", int(total_num_steps / (end - start)), global_step=network_updates)
+        config.tb.add_scalar("tran/avg_rw", np.mean(episode_rewards), global_step=network_updates)
+        config.tb.add_scalar("train/entropy", dist_entropy, global_step=network_updates)
+        config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
+        config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
 
 
 if __name__ == "__main__":
