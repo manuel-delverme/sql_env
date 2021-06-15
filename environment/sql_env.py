@@ -75,7 +75,9 @@ class SQLEnv(gym.Env):
         else:
             escape = ''
         solution = ["1", escape, " UNION SELECT ", *([" NULL, "] * cols), "a", " FROM ", "p", " -- "]
-        completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
+
+        # completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
+        completed_input_query = input_query
 
         http_code = http.client.OK
         content = ""
