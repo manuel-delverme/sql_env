@@ -4,6 +4,7 @@ from collections import deque
 
 import numpy as np
 import torch
+import tqdm
 import wandb
 
 import config
@@ -46,7 +47,7 @@ def main():
     # text_table = config.tb.run.Table(columns=["epoch", "query"])
     data = []
 
-    for network_updates in range(num_updates):
+    for network_updates in tqdm.trange(num_updates):
         for rollout_step in range(config.num_steps):
             with torch.no_grad():
                 value, batch_queries, action_log_prob = actor_critic.act(rollouts.obs[rollout_step])

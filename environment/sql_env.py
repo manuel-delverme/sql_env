@@ -118,10 +118,13 @@ class SQLEnv(gym.Env):
             content = "Incorrect number of bindings supplied"
 
         out_tokens = content.split(" ")
+
         if content and set(out_tokens).difference(self.action_space.vocab):
-            print("UNK", content)
-            print("Q:", input_query)
+            if not terminal:
+                print("UNK", content)
+                print("Q:", input_query)
             content = "UNK"
+
         return content, reward, terminal, {}
 
     def reset(self):
