@@ -6,9 +6,10 @@ import torch.nn as nn
 
 
 class Policy(nn.Module):
-    output_vocab = sorted(set(string.ascii_lowercase + " " + string.digits + "'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
+    # output_vocab = sorted(set(string.ascii_lowercase + " " + string.digits + "'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
+    output_vocab = sorted(set("pa 1'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
 
-    def __init__(self, obs_shape, output_vocab):
+    def __init__(self, obs_shape, output_vocab, sequence_length):
         super(Policy, self).__init__()
         EMBEDDING_DIM = 10
 
@@ -24,7 +25,7 @@ class Policy(nn.Module):
         self.embeddings_in.weight.requires_grad = False
         self.embeddings_out.weight.requires_grad = False
 
-        self.base = MLPBase(EMBEDDING_DIM, len(self.output_vocab))
+        self.base = MLPBase(EMBEDDING_DIM, len(self.output_vocab), sequence_length)
 
     def _decode(self, action):
         return " ".join([self.query_vocab[w] for w in action])
@@ -86,8 +87,9 @@ class Policy(nn.Module):
 
 
 class MLPBase(nn.Module):
-    def __init__(self, num_inputs, dictionary_size, hidden_size=64):
+    def __init__(self, num_inputs, dictionary_size, query_length, hidden_size=64):
         super().__init__()
+        self._query_length = query_length
         self._hidden_size = hidden_size
         self.gru = nn.GRU(num_inputs, hidden_size)
 
@@ -113,7 +115,7 @@ class MLPBase(nn.Module):
         query = []
         query_logprobs = []
 
-        for _ in range(8):
+        for _ in range(self._query_length):
             word_logprobs, rnn_hxs = self.actor(rnn_hxs)
             word = torch.distributions.Categorical(logits=word_logprobs).sample()
             query.append(word)
