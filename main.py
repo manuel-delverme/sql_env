@@ -70,7 +70,7 @@ def main():
             config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
-
+        next_value = torch.zeros_like(next_value)
         rollouts.compute_returns(next_value, config.use_gae, config.gamma, config.gae_lambda)
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
         rollouts.after_update()
@@ -84,6 +84,7 @@ def main():
             end = time.time()
             config.tb.add_scalar("train/fps", int(total_num_steps / (end - start)), global_step=network_updates)
             config.tb.add_scalar("tran/avg_rw", np.mean(episode_rewards), global_step=network_updates)
+            config.tb.add_scalar("tran/max_return", np.max(episode_rewards), global_step=network_updates)
             config.tb.add_scalar("train/entropy", dist_entropy, global_step=network_updates)
             config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
