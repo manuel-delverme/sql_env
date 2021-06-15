@@ -54,7 +54,7 @@ class SQLEnv(gym.Env):
 
         self.observation_space = TextSpace(output_vocab)
 
-        self.target_query_length = 2
+        self.target_query_length = 6
         self.action_space = TextSpace(output_vocab, self.target_query_length)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
@@ -98,8 +98,6 @@ class SQLEnv(gym.Env):
         #     reward = -.1
         if 'account' in content and '!' in content:
             reward = 1.
-            print("=" * 20)
-            print(content)
             terminal = True
 
         if ": syntax error" in content and "near " in content:
