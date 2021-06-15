@@ -98,8 +98,6 @@ class SQLEnv(gym.Env):
         #     reward = -.1
         if 'account' in content and '!' in content:
             reward = 1.
-            print("=" * 20)
-            print(content)
             terminal = True
 
         if ": syntax error" in content and "near " in content:
