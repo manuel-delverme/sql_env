@@ -34,7 +34,7 @@ user = getpass.getuser()
 target_query_length = 2
 
 experiment_buddy.register(locals())
-HOST = "" if user in ("d3sm0", "esac") else ""
+HOST = "mila" if user in ("d3sm0", "esac") else ""
 DEBUG = sys.gettrace() is not None
 PROC_NUM = 1
 YAML_FILE = "params.yml"
