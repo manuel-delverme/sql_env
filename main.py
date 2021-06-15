@@ -70,7 +70,7 @@ def main():
             config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
-
+        next_value = torch.zeros_like(next_value)
         rollouts.compute_returns(next_value, config.use_gae, config.gamma, config.gae_lambda)
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
         rollouts.after_update()
