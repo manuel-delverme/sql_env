@@ -36,20 +36,19 @@ class SQLEnv(gym.Env):
 
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
-        self.cursor.execute("CREATE TABLE private(id INTEGER PRIMARY KEY AUTOINCREMENT, userid INT, account TEXT)")
+        self.cursor.execute("CREATE TABLE p(id INTEGER PRIMARY KEY AUTOINCREMENT, userid INT, a TEXT)")
 
-        self.cursor.execute("INSERT INTO private(id, userid, account) VALUES(NULL, 1, 'accountnr:123456!')")
+        self.cursor.execute("INSERT INTO p(id, userid, a) VALUES(NULL, 1, 'accountnr:123456!')")
 
         data = []
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
-        output_vocab = {"near", "syntax", "error", "no", "such", "column", "incomplete", "input", "", "UNK"}  # "\"FROM\":",
-        # {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", "", "private", "account", "None", "and"}
-
-        # for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
-        #     row = row.findtext("username"), row.findtext("firstname"), row.findtext("surname"), row.findtext("age"), row.findtext("nationality"), row.findtext("created_at")
-        #     data.append(row)
-        #     output_vocab.update(row)
-        #     output_vocab.update(str(idx + 1))
+        output_vocab = {
+            "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
+            'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
+            *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
+            *"Incorrect number of bindings supplied".split(),
+            "", "UNK"
+        }
 
         self.observation_space = TextSpace(output_vocab)
         self.action_space = TextSpace(output_vocab)
@@ -74,17 +73,16 @@ class SQLEnv(gym.Env):
                     content += str(f) + ";"  # "{'-' if f is None else f}\n"
         except Exception as ex:
             content += str(ex)
-            # content += "ERROR"
             http_code = http.client.INTERNAL_SERVER_ERROR
 
         terminal = False
 
-        if http_code == http.client.INTERNAL_SERVER_ERROR:
-            reward = -.1
-        else:
-            reward = -.01
+        reward = -1
+        # if http_code == http.client.INTERNAL_SERVER_ERROR:
+        # else:
+        #     reward = -.1
         if 'account' in content and '!' in content:
-            reward += 1.
+            reward = 1.
             terminal = True
 
         if ": syntax error" in content and "near " in content:
@@ -93,14 +91,24 @@ class SQLEnv(gym.Env):
         if "no such column" in content:
             content = "no such column"
 
+        if "unrecognized token" in content:
+            content = "unrecognized token"
+
+        if "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
+            content = "SELECTs to the left and right of UNION do not have the same number of result columns"
+
+        if "Incorrect number of bindings supplied" in content:
+            content = "Incorrect number of bindings supplied"
+
         out_tokens = content.split(" ")
         if content and set(out_tokens).difference(self.action_space.vocab):
             print("UNK", content)
+            print("Q:", input_query)
             content = "UNK"
         return content, reward, terminal, {}
 
     def reset(self):
-        columns = np.random.randint(0, self.max_columns)
+        columns = np.random.randint(1, self.max_columns + 1)
         selected_columns = ", ".join(constants.columns[:columns])
         hidden_parameter = np.random.choice([
             "firstname='{input}'",
@@ -108,5 +116,6 @@ class SQLEnv(gym.Env):
             "age={input}",
         ])
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
+        # 1' UNION SELECT a, NULL, NULL FROM p --
         state, _, _, _ = self.step("1")
         return state

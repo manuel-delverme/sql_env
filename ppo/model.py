@@ -6,26 +6,25 @@ import torch.nn as nn
 
 
 class Policy(nn.Module):
+    output_vocab = sorted(set(string.ascii_lowercase + " " + string.digits + "'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
+
     def __init__(self, obs_shape, output_vocab):
         super(Policy, self).__init__()
         EMBEDDING_DIM = 10
 
-        action_vocab = set(string.punctuation + " " + string.digits).union({" UNION SELECT ", " NULL ", " FROM "})
-        query_vocab = sorted(output_vocab)
-        output_vocab = sorted(action_vocab)
+        # test
+        # minial number of token
+        self.query_vocab = sorted(output_vocab)
 
-        self.query_word_to_idx = {word: idx for idx, word in enumerate(query_vocab)}
-        self.output_token_to_idx = {word: idx for idx, word in enumerate(output_vocab)}
+        self.query_word_to_idx = {word: idx for idx, word in enumerate(self.query_vocab)}
+        self.output_token_to_idx = {word: idx for idx, word in enumerate(self.output_vocab)}
 
-        self.embeddings_in = nn.Embedding(len(query_vocab), EMBEDDING_DIM)
-        self.embeddings_out = nn.Embedding(len(output_vocab), EMBEDDING_DIM)
+        self.embeddings_in = nn.Embedding(len(self.query_vocab), EMBEDDING_DIM)
+        self.embeddings_out = nn.Embedding(len(self.output_vocab), EMBEDDING_DIM)
         self.embeddings_in.weight.requires_grad = False
         self.embeddings_out.weight.requires_grad = False
 
-        self.query_vocab = query_vocab
-        self.output_vocab = output_vocab
-
-        self.base = MLPBase(EMBEDDING_DIM, len(output_vocab))
+        self.base = MLPBase(EMBEDDING_DIM, len(self.output_vocab))
 
     def _decode(self, action):
         return " ".join([self.query_vocab[w] for w in action])
