@@ -20,7 +20,7 @@ class PPO:
 
     def update(self, rollouts):
         advantages = rollouts.returns[:-1]  # - rollouts.value_preds[:-1]
-        #advantages  = (advantages - advantages.min()) / (advantages.max() - advantages.min())
+        advantages  = (advantages - advantages.min()) / (advantages.max() - advantages.min())
         value_loss_epoch = 0
         action_loss_epoch = 0
         dist_entropy_epoch = 0
