@@ -55,8 +55,8 @@ def main():
             obs, reward, done, infos = envs.step(queries)
 
             if network_updates % config.log_interval == 0:
-                data.extend([[network_updates, rollout_step, q, float(r), o] for q, r, o in zip(queries, reward, obs)])
-                config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward"], data=data)})
+                data.extend([[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
+                config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
 
             for info in infos:
                 if 'episode' in info.keys():
