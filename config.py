@@ -1,7 +1,7 @@
+import getpass
 import sys
 
 import experiment_buddy
-import getpass
 
 lr = 7e-4  # _, help='learning rate (default: 7e_4)')
 eps = 1e-5  # _, help='RMSprop optimizer epsilon (default: 1e_5)')
@@ -36,7 +36,7 @@ experiment_buddy.register(locals())
 HOST = "mila" if user in ("d3sm0", "esac") else ""
 DEBUG = sys.gettrace() is not None
 PROC_NUM = 5
-YAML_FILE = "params.yml"
-tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE,   proc_num=PROC_NUM,
+YAML_FILE = ""  # "params.yml"
+tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM,
                              wandb_kwargs={"mode": "disabled" if DEBUG else "online",
                                            "entity": "rl-sql"})
