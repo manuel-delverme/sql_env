@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 import torch.optim as optim
 
 
@@ -20,7 +19,7 @@ class PPO:
 
     def update(self, rollouts):
         advantages = rollouts.returns[:-1]  # - rollouts.value_preds[:-1]
-        #advantages  = (advantages - advantages.min()) / (advantages.max() - advantages.min())
+        # advantages = (advantages - advantages.min()) / (advantages.max() - advantages.min())
         value_loss_epoch = 0
         action_loss_epoch = 0
         dist_entropy_epoch = 0
@@ -45,7 +44,7 @@ class PPO:
                 value_loss = 0.5 * (return_batch - values).pow(2).mean()
 
                 self.optimizer.zero_grad()
-                (action_loss).backward()
+                action_loss.backward()
                 # nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
                 self.optimizer.step()
 
