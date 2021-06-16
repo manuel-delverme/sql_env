@@ -107,7 +107,7 @@ class SQLEnv(gym.Env):
             terminal = True
 
         for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
-            reward += 0.1 * float(i.isupper() == s.isupper())
+            reward += 0.1 * float(i.strip() == s.strip())
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
