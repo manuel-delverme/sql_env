@@ -22,7 +22,7 @@ log_interval = 100
 log_query_interval = 10_000
 save_interval = 10000  # _, help='save interval, one save per n updates (default: 100)')
 eval_interval = None  # _, help='eval interval, one eval per n updates (default: None)')
-num_env_steps = 1e6  # _, help='number of environment steps to train (default: 10e6)')
+num_env_steps = 1e8  # _, help='number of environment steps to train (default: 10e6)')
 log_dir = '/tmp/gym/'  # _, help='directory to save agent logs (default: /tmp/gym)')
 save_dir = './trained_models/'  # _, help='directory to save agent logs (default: ./trained_models/)')
 no_cuda = False  # _, help='disables CUDA training')
@@ -35,7 +35,7 @@ user = getpass.getuser()
 experiment_buddy.register(locals())
 HOST = "mila" if user in ("d3sm0", "esac") else ""
 DEBUG = sys.gettrace() is not None
-PROC_NUM = 1
+PROC_NUM = 5
 YAML_FILE = ""  # "params.yml"
 tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM,
                              wandb_kwargs={"mode": "disabled" if DEBUG else "online",

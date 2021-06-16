@@ -98,7 +98,7 @@ class SQLEnv(gym.Env):
 
         terminal = False
 
-        reward = -1.
+        reward = -0.
         # if http_code == http.client.INTERNAL_SERVER_ERROR:
         # else:
         #     reward = -.1
@@ -111,6 +111,7 @@ class SQLEnv(gym.Env):
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
+            reward = -.1
 
         if "no such column" in content:
             content = "no such column"
