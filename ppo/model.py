@@ -22,8 +22,8 @@ class Policy(nn.Module):
 
         self.embeddings_in = nn.Embedding(len(self.query_vocab), EMBEDDING_DIM)
         self.embeddings_out = nn.Embedding(len(self.output_vocab), EMBEDDING_DIM)
-        self.embeddings_in.weight.requires_grad = False
-        self.embeddings_out.weight.requires_grad = False
+        self.embeddings_in.weight.requires_grad = True
+        self.embeddings_out.weight.requires_grad = True
 
         self.base = MLPBase(EMBEDDING_DIM, len(self.output_vocab), sequence_length, eps=eps)
 
@@ -114,6 +114,7 @@ class MLPBase(nn.Module):
         # TODO fix this with logprop
         value = self.critic(rnn_hxs)
         query = []
+        # hxs = []
         query_logprobs = []
 
         for _ in range(self._query_length):
@@ -123,6 +124,7 @@ class MLPBase(nn.Module):
                 word = torch.distributions.Categorical(logits=torch.ones_like(word_logprobs)).sample()
             query.append(word)
             query_logprobs.append(word_logprobs)
+            # query_logprobs.append(self.emb)
         # b x t x k
         query_logprobs = torch.stack(query_logprobs, dim=1)
         query = torch.stack(query, dim=1).unsqueeze(-1)
