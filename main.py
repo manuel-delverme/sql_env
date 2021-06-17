@@ -91,7 +91,7 @@ def main():
         if network_updates % config.log_interval == 0 and len(episode_rewards) > 1:
             total_num_steps = (network_updates + 1) * config.num_processes * config.num_steps
             end = time.time()
-            action_logprob = running_logprobs / config.num_steps
+            action_logprob = (running_logprobs / config.num_steps).mean(0)
             config.tb.add_histogram("train/log_prob", action_logprob, global_step=network_updates)
             config.tb.add_histogram('train/log_prob_per_action', np.histogram(np.arange(action_logprob.shape[0]), weights=action_logprob), global_step=network_updates)
             config.tb.add_scalar("train/fps", int(total_num_steps / (end - start)), global_step=network_updates)
