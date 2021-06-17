@@ -112,7 +112,7 @@ class SQLEnv(gym.Env):
         similarity = 0
         for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
             similarity += float(i.strip() == s.strip()) / self.target_query_length
-            # reward += 0.1 * distance
+            reward += 0.01 * similarity
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
