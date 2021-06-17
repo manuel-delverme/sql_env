@@ -51,7 +51,7 @@ def main():
 
     for network_updates in tqdm.trange(num_updates):
         episode_distances.clear()
-        running_logprobs = torch.zeros(9, 9)
+        running_logprobs = torch.zeros(envs.action_space.sequence_length, len(ppo.model.Policy.output_vocab))
 
         for rollout_step in range(config.num_steps):
             with torch.no_grad():
@@ -68,7 +68,7 @@ def main():
                 if 'episode' in info.keys():
                     episode_rewards.append(info['episode']['r'])
 
-                episode_distances.append(info['distance'])
+                episode_distances.append(info['similarity'])
 
             # If done then clean the history of observations.
             masks = torch.tensor(1 - done, dtype=torch.float32)
