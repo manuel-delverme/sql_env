@@ -13,7 +13,6 @@ class RolloutStorage(object):
     def __init__(self, num_steps, num_processes, obs_shape, action_space):
         self.obs = np.zeros((num_steps + 1, num_processes, *obs_shape), dtype=action_space.dtype)
         self.rewards = torch.zeros(num_steps, num_processes, 1)
-        self.value_preds = torch.zeros(num_steps + 1, num_processes, 1)
         self.returns = torch.zeros(num_steps + 1, num_processes, 1)
         self.action_log_probs = [[] for _ in range(num_steps)]
         self.actions = [[] for _ in range(num_steps)]
@@ -27,15 +26,13 @@ class RolloutStorage(object):
 
     def to(self, device):
         self.rewards = self.rewards.to(device)
-        self.value_preds = self.value_preds.to(device)
         self.returns = self.returns.to(device)
         self.masks = self.masks.to(device)
 
-    def insert(self, obs, actions, action_log_probs, value_preds, rewards, masks):
+    def insert(self, obs, actions, action_log_probs, rewards, masks):
         self.obs[self.step + 1] = obs.copy()
         self.actions[self.step] = actions.copy()
         self.action_log_probs[self.step] = action_log_probs.clone()
-        self.value_preds[self.step].copy_(value_preds)
         self.rewards[self.step].copy_(rewards)
         self.masks[self.step + 1].copy_(masks)
 
@@ -44,12 +41,6 @@ class RolloutStorage(object):
     def after_update(self):
         self.obs[0] = self.obs[-1].copy()
         self.masks[0].copy_(self.masks[-1])
-
-    def compute_returns(self, next_value, use_gae, gamma, gae_lambda):
-        self.returns[-1] = next_value
-        assert len(self.rewards) == self.num_steps
-        for step in reversed(list(range(self.num_steps))):
-            self.returns[step] = self.returns[step + 1] * gamma * self.masks[step + 1] + self.rewards[step]
 
     def feed_forward_generator(self, advantages, num_mini_batch=None, mini_batch_size=None) -> Tuple[
         torch.tensor, torch.tensor, torch.tensor, torch.tensor,]:
@@ -69,7 +60,6 @@ class RolloutStorage(object):
         for indices in sampler:
             obs_batch = self.obs[:-1].reshape(-1, *self.obs.shape[2:])[indices]
             actions_batch = np.stack([self.actions[idx].squeeze() for idx in indices])
-            value_preds_batch = self.value_preds[:-1].view(-1, 1)[indices]
             return_batch = self.returns[:-1].view(-1, 1)[indices]
             masks_batch = self.masks[:-1].view(-1, 1)[indices]
             old_action_log_probs_batch = np.stack([self.action_log_probs[idx].squeeze() for idx in indices])
@@ -78,4 +68,4 @@ class RolloutStorage(object):
             else:
                 adv_targ = advantages.view(-1, 1)[indices]
 
-            yield obs_batch, actions_batch, value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
+            yield obs_batch, actions_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
