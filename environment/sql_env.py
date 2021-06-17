@@ -6,6 +6,7 @@ import gym.envs
 import numpy as np
 import torch.distributions
 
+import config
 import constants
 
 torch.manual_seed(1)
@@ -54,7 +55,7 @@ class SQLEnv(gym.Env):
 
         self.observation_space = TextSpace(output_vocab)
 
-        self.target_query_length = 9
+        self.target_query_length = config.complexity
         self.action_space = TextSpace(output_vocab, self.target_query_length)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
@@ -74,10 +75,12 @@ class SQLEnv(gym.Env):
             escape = '"'
         else:
             escape = ''
+        if escape in input_query:
+            input_query.format(escape=escape)
         solution = [" 1 ", escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
 
-        # completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
-        completed_input_query = input_query
+        completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
+        # completed_input_query = input_query
 
         http_code = http.client.OK
         content = ""
@@ -106,14 +109,15 @@ class SQLEnv(gym.Env):
             reward = 1.
             terminal = True
 
-        distance = 0
+        similarity = 0
         for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
-            distance += float(i.strip() == s.strip())
-            reward += 0.1 * distance
+            similarity += float(i.strip() == s.strip()) / self.target_query_length
+            # reward += 0.1 * distance
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
-            reward = -.1
+            # reward = -1
+            # reward = 0
 
         if "no such column" in content:
             content = "no such column"
@@ -137,17 +141,18 @@ class SQLEnv(gym.Env):
                 print("Query: ", input_query)
                 print("returns: ", content)
             content = "UNK"
+        content = "UNK"
 
-        return content, reward, terminal, {'distance': distance}
+        return content, reward, terminal, {'similarity': similarity}
 
     def reset(self):
-        np.random.seed(0)
-        columns = np.random.randint(1, self.max_columns + 1)
-        selected_columns = ", ".join(constants.columns[:columns])
+        # columns = np.random.randint(1, self.max_columns + 1)
+        # selected_columns = ", ".join(constants.columns[:columns])
+        selected_columns = constants.columns[0]
         hidden_parameter = np.random.choice([
             "firstname='{input}'",
-            "nationality=\"{input}\"",
-            "age={input}",
+            # "nationality=\"{input}\"",
+            # "age={input}",
         ])
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
         # 1' UNION SELECT a, NULL, NULL FROM p --
