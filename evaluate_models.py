@@ -15,7 +15,7 @@ def test_episodes(model, env, num_episodes):
             steps += 1
         successes.append(reward == 1)
         num_steps.append(steps)
-    return episode_rewards, num_steps, successes2
+    return episode_rewards, num_steps, successes
 
 
 def look_at_an_episode(model, env):
