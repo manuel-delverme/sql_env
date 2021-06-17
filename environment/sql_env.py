@@ -74,7 +74,7 @@ class SQLEnv(gym.Env):
             escape = '"'
         else:
             escape = ''
-        solution = ["1", escape, " UNION SELECT ", *([" NULL, "] * cols), "a", " FROM ", "p", " -- "]
+        solution = [" 1 ", escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
 
         # completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
         completed_input_query = input_query
