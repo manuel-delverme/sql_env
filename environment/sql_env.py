@@ -12,9 +12,10 @@ torch.manual_seed(1)
 
 
 class TextSpace(gym.spaces.Space):
-    def __init__(self, vocab):
+    def __init__(self, vocab, length=None):
         self.vocab = vocab
-        self.n = len(vocab)
+        self.sequence_length = length
+        self.vocab_length = len(vocab)
         super().__init__(shape=(1,), dtype=np.object_)
 
     def contains(self, x):
@@ -47,11 +48,14 @@ class SQLEnv(gym.Env):
             'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
             *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
             *"Incorrect number of bindings supplied".split(),
+            *"no such table".split(),
             "", "UNK"
         }
 
         self.observation_space = TextSpace(output_vocab)
-        self.action_space = TextSpace(output_vocab)
+
+        self.target_query_length = 9
+        self.action_space = TextSpace(output_vocab, self.target_query_length)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
@@ -63,33 +67,59 @@ class SQLEnv(gym.Env):
         assert isinstance(input_query, str)
         # We can use the same database as long as we change the hidden query
 
+        cols = self.query_template.split(" FROM ")[0].count(',')
+        if "firstname='{input}'" in self.query_template:
+            escape = "'"
+        elif "nationality=\"{input}\"" in self.query_template:
+            escape = '"'
+        else:
+            escape = ''
+        solution = [" 1 ", escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
+
+        # completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
+        completed_input_query = input_query
+
         http_code = http.client.OK
         content = ""
-        query = self.query_template.format(input=input_query)
+        found_flag = False
+        query = self.query_template.format(input=completed_input_query)
+
         try:
             self.cursor.execute(query)
             for some in self.cursor.fetchall():
                 for f in some:
-                    content += str(f) + ";"  # "{'-' if f is None else f}\n"
+                    # content += str(f) + ";"  # "{'-' if f is None else f}\n"
+                    f = str(f)
+                    if 'account' in f and '!' in f:
+                        found_flag = True
         except Exception as ex:
             content += str(ex)
             http_code = http.client.INTERNAL_SERVER_ERROR
 
         terminal = False
 
-        reward = -1
+        reward = -0.
         # if http_code == http.client.INTERNAL_SERVER_ERROR:
         # else:
         #     reward = -.1
-        if 'account' in content and '!' in content:
+        if found_flag:
             reward = 1.
             terminal = True
 
+        distance = 0
+        for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
+            distance += float(i.strip() == s.strip())
+            reward += 0.1 * distance
+
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
+            reward = -.1
 
         if "no such column" in content:
             content = "no such column"
+
+        if "no such table" in content:
+            content = "no such table"
 
         if "unrecognized token" in content:
             content = "unrecognized token"
@@ -101,13 +131,17 @@ class SQLEnv(gym.Env):
             content = "Incorrect number of bindings supplied"
 
         out_tokens = content.split(" ")
+
         if content and set(out_tokens).difference(self.action_space.vocab):
-            print("UNK", content)
-            print("Q:", input_query)
+            if not terminal:
+                print("Query: ", input_query)
+                print("returns: ", content)
             content = "UNK"
-        return content, reward, terminal, {}
+
+        return content, reward, terminal, {'distance': distance}
 
     def reset(self):
+        np.random.seed(0)
         columns = np.random.randint(1, self.max_columns + 1)
         selected_columns = ", ".join(constants.columns[:columns])
         hidden_parameter = np.random.choice([

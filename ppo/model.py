@@ -1,33 +1,38 @@
-import string
-
 import numpy as np
 import torch
 import torch.nn as nn
 
 
 class Policy(nn.Module):
-    output_vocab = sorted(set(string.ascii_lowercase + " " + string.digits + "'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
+    # output_vocab = sorted(set(string.ascii_lowercase + " " + string.digits + "'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
+    output_vocab = sorted(set("").union({
+        " UNION SELECT ", " NULL, ", " FROM ", " -- ",
+        " p ",
+        " a ",
+        # " ",
+        " 1 ",
+        " ' ",
+        " \" ",
+    }))
 
-    def __init__(self, obs_shape, output_vocab):
+    def __init__(self, obs_shape, response_vocab, sequence_length, eps):
         super(Policy, self).__init__()
         EMBEDDING_DIM = 10
 
         # test
         # minial number of token
-        self.query_vocab = sorted(output_vocab)
+        self.response_vocab = sorted(response_vocab)
 
-        self.query_word_to_idx = {word: idx for idx, word in enumerate(self.query_vocab)}
+        self.query_word_to_idx = {word: idx for idx, word in enumerate(self.response_vocab)}
         self.output_token_to_idx = {word: idx for idx, word in enumerate(self.output_vocab)}
 
-        self.embeddings_in = nn.Embedding(len(self.query_vocab), EMBEDDING_DIM)
-        self.embeddings_out = nn.Embedding(len(self.output_vocab), EMBEDDING_DIM)
-        self.embeddings_in.weight.requires_grad = False
-        self.embeddings_out.weight.requires_grad = False
+        self.embeddings_in = nn.Embedding(len(self.response_vocab), EMBEDDING_DIM)
+        self.embeddings_in.weight.requires_grad = True
 
-        self.base = MLPBase(EMBEDDING_DIM, len(self.output_vocab))
+        self.base = MLPBase(EMBEDDING_DIM, len(self.output_vocab), sequence_length, eps=eps)
 
     def _decode(self, action):
-        return " ".join([self.query_vocab[w] for w in action])
+        return " ".join([self.response_vocab[w] for w in action])
 
     def _encode(self, state):
         retr = torch.tensor([self.output_token_to_idx[w] for w in state], dtype=torch.long)
@@ -36,7 +41,6 @@ class Policy(nn.Module):
     def act(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
         value, batch_query, query_logprobs = self.base(embeds)
-        batch_size, query_length, _ = batch_query.shape
         queries = []
         for query_idx in batch_query:
             query_tokens = [self.output_vocab[idx] for idx in query_idx]
@@ -86,10 +90,12 @@ class Policy(nn.Module):
 
 
 class MLPBase(nn.Module):
-    def __init__(self, num_inputs, dictionary_size, hidden_size=64):
+    def __init__(self, num_inputs, dictionary_size, query_length, eps, hidden_size=64):
         super().__init__()
+        self._query_length = query_length
         self._hidden_size = hidden_size
         self.gru = nn.GRU(num_inputs, hidden_size)
+        self.eps = eps
 
         self.end_of_line = dictionary_size
         self.actor = AutoregressiveActor(hidden_size, hidden_size, dictionary_size)
@@ -100,22 +106,25 @@ class MLPBase(nn.Module):
         )
         self.train()
 
-    def forward(self, inputs):
-        collect = []
-        for x in inputs:
-            assert x.ndim == 2
-            _, rnn_hxs = self.gru(x.unsqueeze(1), None)  # (seq_len, batch, input_size)
-            collect.append(rnn_hxs.squeeze(0))
-        rnn_hxs = torch.cat(collect)
+    def forward(self, batched_x):
+        batch_forwards = []
+        for x_i in batched_x:
+            assert x_i.ndim == 2
+            _, rnn_hxs = self.gru(x_i.unsqueeze(1), None)
+            batch_forwards.append(rnn_hxs.squeeze(0))
+        rnn_hxs = torch.cat(batch_forwards)
         # TODO: this was _x instead of rnn_hxs, but i want to remove the time dimension
         # TODO fix this with logprop
+
         value = self.critic(rnn_hxs)
         query = []
         query_logprobs = []
 
-        for _ in range(8):
+        for _ in range(self._query_length):
             word_logprobs, rnn_hxs = self.actor(rnn_hxs)
             word = torch.distributions.Categorical(logits=word_logprobs).sample()
+            if torch.rand((1,)) < self.eps:
+                word = torch.distributions.Categorical(logits=torch.ones_like(word_logprobs)).sample()
             query.append(word)
             query_logprobs.append(word_logprobs)
         # b x t x k

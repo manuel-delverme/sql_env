@@ -1,7 +1,7 @@
+import getpass
 import sys
 
 import experiment_buddy
-import getpass
 
 lr = 7e-4  # _, help='learning rate (default: 7e_4)')
 eps = 1e-5  # _, help='RMSprop optimizer epsilon (default: 1e_5)')
@@ -14,14 +14,15 @@ value_loss_coef = 0.5  # _, help='value loss coefficient (default: 0.5)')
 max_grad_norm = 0.5  # _, help='max norm of gradients (default: 0.5)')
 seed = 1  # _, help='random seed (default: 1)')
 num_processes = 1  # _, help='how many training CPU processes to use (default: 16)')
-num_steps = 5  # _, help='number of forward steps in A2C (default: 5)')
+num_steps = 30  # _, help='number of forward steps in A2C (default: 5)')
 ppo_epoch = 4  # _, help='number of ppo epochs (default: 4)')
 num_mini_batch = 1  # _, help='number of batches for ppo (default: 32)')
 clip_param = 0.2  # _, help='ppo clip parameter (default: 0.2)')
 log_interval = 100
+log_query_interval = 10_000
 save_interval = 10000  # _, help='save interval, one save per n updates (default: 100)')
 eval_interval = None  # _, help='eval interval, one eval per n updates (default: None)')
-num_env_steps = 1e6  # _, help='number of environment steps to train (default: 10e6)')
+num_env_steps = 1e8  # _, help='number of environment steps to train (default: 10e6)')
 log_dir = '/tmp/gym/'  # _, help='directory to save agent logs (default: /tmp/gym)')
 save_dir = './trained_models/'  # _, help='directory to save agent logs (default: ./trained_models/)')
 no_cuda = False  # _, help='disables CUDA training')
@@ -34,6 +35,8 @@ user = getpass.getuser()
 experiment_buddy.register(locals())
 HOST = "mila" if user in ("d3sm0", "esac") else ""
 DEBUG = sys.gettrace() is not None
-PROC_NUM = 1
-tb = experiment_buddy.deploy(host=HOST, sweep_yaml="",
-                             wandb_kwargs={"mode": "disabled" if DEBUG else "online", "entity": "rl-sql"})
+PROC_NUM = 2
+YAML_FILE = ""  # "params.yml"
+tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM,
+                             wandb_kwargs={"mode": "disabled" if DEBUG else "online",
+                                           "entity": "rl-sql"})
