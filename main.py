@@ -51,7 +51,7 @@ def main():
 
     for network_updates in tqdm.trange(num_updates):
         episode_distances.clear()
-        running_logprobs = torch.zeros(9, 9)
+        running_logprobs = torch.zeros(envs.action_space.sequence_length, len(ppo.model.Policy.output_vocab))
 
         for rollout_step in range(config.num_steps):
             with torch.no_grad():
