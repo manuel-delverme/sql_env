@@ -5,11 +5,11 @@ from collections import deque
 import numpy as np
 import torch
 import tqdm
-import wandb
 
 import config
 import environment  # noqa
 import ppo.model
+import wandb
 from ppo import utils
 from ppo.envs import make_vec_envs
 from ppo.storage import RolloutStorage
@@ -51,10 +51,12 @@ def main():
 
     for network_updates in tqdm.trange(num_updates):
         episode_distances.clear()
+        running_logprobs = torch.zeros(9, 10)
 
         for rollout_step in range(config.num_steps):
             with torch.no_grad():
                 value, batch_queries, action_log_prob = actor_critic.act(rollouts.obs[rollout_step])
+            running_logprobs += action_log_prob[0]
 
             queries = ["".join(query) for query in batch_queries]
             obs, reward, done, infos = envs.step(queries)
@@ -89,6 +91,9 @@ def main():
         if network_updates % config.log_interval == 0 and len(episode_rewards) > 1:
             total_num_steps = (network_updates + 1) * config.num_processes * config.num_steps
             end = time.time()
+            action_logprob = running_logprobs / config.num_steps
+            config.tb.add_histogram("train/log_prob", action_logprob, global_step=network_updates)
+            config.tb.add_histogram('train/log_prob_per_action', np.histogram(np.arange(action_logprob.shape[0]), weights=action_logprob), global_step=network_updates)
             config.tb.add_scalar("train/fps", int(total_num_steps / (end - start)), global_step=network_updates)
             config.tb.add_scalar("tran/avg_rw", np.mean(episode_rewards), global_step=network_updates)
             config.tb.add_scalar("tran/max_return", np.max(episode_rewards), global_step=network_updates)

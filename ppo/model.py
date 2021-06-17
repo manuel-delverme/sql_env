@@ -7,7 +7,15 @@ import torch.nn as nn
 
 class Policy(nn.Module):
     # output_vocab = sorted(set(string.ascii_lowercase + " " + string.digits + "'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
-    output_vocab = sorted(set("pa 1'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
+    output_vocab = sorted(set("").union({
+        " UNION SELECT ", " NULL, ", " FROM ", " -- ",
+        " p "
+        " a "
+        # " "
+        " 1 "
+        " ' "
+        " \" "
+    }))
 
     def __init__(self, obs_shape, output_vocab, sequence_length, eps):
         super(Policy, self).__init__()
