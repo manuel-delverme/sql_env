@@ -1,5 +1,8 @@
-
-def generate_actions(max_columns = 5, escapes = ["'", '"',""]):
+import sys
+sys.path.append("../")
+import constants
+def generate_actions(escapes = ["'", '"',""]):
+    max_columns = constants.max_columns
     prelim = [
         "1{0} or 1=1 --",
         "1{0} or 1=2 --"
@@ -36,5 +39,6 @@ if __name__ == "__main__":
     print(generate_actions())
     counter = 0
     for action in generate_actions():
-        print(counter, action)
+        #print(counter, action)
+        print("\\item", action)
         counter += 1
