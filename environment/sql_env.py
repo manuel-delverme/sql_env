@@ -74,6 +74,8 @@ class SQLEnv(gym.Env):
             escape = '"'
         else:
             escape = ''
+        if escape in input_query:
+            input_query.format(escape=escape)
         solution = [" 1 ", escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
 
         # completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
@@ -103,17 +105,18 @@ class SQLEnv(gym.Env):
         # else:
         #     reward = -.1
         if found_flag:
-            reward = 1.
+            reward = 10.
             terminal = True
 
         distance = 0
         for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
-            distance += float(i.strip() == s.strip())
+            distance += float(i.strip() == s.strip()) / self.target_query_length
             reward += 0.1 * distance
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
-            reward = -.1
+            # reward = -1
+            reward = 0
 
         if "no such column" in content:
             content = "no such column"
