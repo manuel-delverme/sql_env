@@ -115,10 +115,7 @@ class MLPBase(nn.Module):
 
         value = self.critic(rnn_hxs)
         query_logprobs = self.actor(rnn_hxs)
-        if torch.rand((1,)) < 0.1:
-            query = torch.distributions.Multinomial(logits=(query_logprobs + torch.ones_like(query_logprobs)) / 2).sample()
-        else:
-            query = torch.distributions.Multinomial(logits=query_logprobs).sample()
+        query = torch.distributions.Multinomial(logits=query_logprobs).sample()
         assert query.shape[:2] == query_logprobs.shape[:2]
         return value, query, query_logprobs
 
