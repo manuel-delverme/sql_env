@@ -40,12 +40,12 @@ class Policy(nn.Module):
 
     def act(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
-        value, batch_query, query_logprobs = self.base(embeds)
+        batch_query, query_logprobs = self.base(embeds)
         queries = []
         for query_idx in batch_query:
-            query_tokens = [self.output_vocab[idx] for idx in query_idx]
+            query_tokens = [self.output_vocab[torch.argmax(idx)] for idx in query_idx]
             queries.append(query_tokens)
-        return value, np.array(queries), query_logprobs
+        return np.array(queries), query_logprobs
 
     def html_to_embedd(self, batch_response):
         word_embeddings = []
@@ -65,18 +65,10 @@ class Policy(nn.Module):
         assert len(word_embeddings) == len(batch_response)
         return word_embeddings
 
-    def get_value(self, batch_response):
-        embeds = self.html_to_embedd(batch_response)
-        # exted in batch dimension as this is used to estimate the value at last state
-        # remove me when multiple env
-        # embeds = embeds.unsqueeze(1)
-        value, _, _ = self.base(embeds)
-        return value
-
     def evaluate_actions(self, batch_response, actions):
         embeds = self.html_to_embedd(batch_response)
         # here we extend in the time domain instead as we ware batching
-        value, query, query_logprobs = self.base(embeds)
+        query, query_logprobs = self.base(embeds)
         parsed_actions = []
         for token_sequence in actions:
             for token in token_sequence:
@@ -86,7 +78,7 @@ class Policy(nn.Module):
                 parsed_actions.append(action_vector)
         parsed_actions = torch.stack(parsed_actions, dim=0).reshape(query_logprobs.shape)
 
-        return value, query_logprobs, parsed_actions
+        return query_logprobs, parsed_actions
 
 
 class MLPBase(nn.Module):
@@ -98,12 +90,7 @@ class MLPBase(nn.Module):
         self.eps = eps
 
         self.end_of_line = dictionary_size
-        self.actor = AutoregressiveActor(hidden_size, hidden_size, dictionary_size)
-        self.critic = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size), nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size), nn.ReLU(),
-            nn.Linear(hidden_size, 1),
-        )
+        self.actor = AutoregressiveActor(hidden_size, hidden_size, dictionary_size, query_length)
         self.train()
 
     def forward(self, batched_x):
@@ -116,33 +103,24 @@ class MLPBase(nn.Module):
         # TODO: this was _x instead of rnn_hxs, but i want to remove the time dimension
         # TODO fix this with logprop
 
-        value = self.critic(rnn_hxs)
-        query = []
-        query_logprobs = []
-
-        for _ in range(self._query_length):
-            word_logprobs, rnn_hxs = self.actor(rnn_hxs)
-            word = torch.distributions.Categorical(logits=word_logprobs).sample()
-            if torch.rand((1,)) < self.eps:
-                word = torch.distributions.Categorical(logits=torch.ones_like(word_logprobs)).sample()
-            query.append(word)
-            query_logprobs.append(word_logprobs)
-        # b x t x k
-        query_logprobs = torch.stack(query_logprobs, dim=1)
-        query = torch.stack(query, dim=1).unsqueeze(-1)
+        query_logprobs = self.actor(rnn_hxs)
+        query = torch.distributions.Multinomial(logits=query_logprobs).sample()
         assert query.shape[:2] == query_logprobs.shape[:2]
-        return value, query, query_logprobs
+        return query, query_logprobs
 
 
 class AutoregressiveActor(nn.Module):
-    def __init__(self, num_inputs, hidden_size, dictionary_size):
+    def __init__(self, num_inputs, hidden_size, dictionary_size, sequence_length):
         super().__init__()
+        self.dictionary_size, self.sequence_length = dictionary_size, sequence_length
+
         self.hidden_to_hidden = nn.Linear(num_inputs, hidden_size)
-        self.hidden_to_output = nn.Linear(hidden_size, dictionary_size)
+        self.hidden_to_output = nn.Linear(hidden_size, dictionary_size * sequence_length)
 
     def forward(self, hidden):
-        next_hidden = self.hidden_to_hidden(hidden)
         output = self.hidden_to_output(hidden)
-        output_prob = torch.log_softmax(output, 1)
+        output = output.reshape(-1, self.sequence_length, self.dictionary_size)
 
-        return output_prob, next_hidden
+        output_prob = torch.log_softmax(output, 2)
+
+        return output_prob

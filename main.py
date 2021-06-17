@@ -55,7 +55,7 @@ def main():
 
         for rollout_step in range(config.num_steps):
             with torch.no_grad():
-                value, batch_queries, action_log_prob = actor_critic.act(rollouts.obs[rollout_step])
+                batch_queries, action_log_prob = actor_critic.act(rollouts.obs[rollout_step])
             running_logprobs += action_log_prob[0]
 
             queries = ["".join(query) for query in batch_queries]
@@ -73,15 +73,12 @@ def main():
             # If done then clean the history of observations.
             masks = torch.tensor(1 - done, dtype=torch.float32)
 
-            rollouts.insert(obs, batch_queries, action_log_prob, value, reward, masks)
+            rollouts.insert(obs, batch_queries, action_log_prob, reward, masks)
 
         if network_updates % config.log_query_interval == 0 and network_updates:
             config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
-        with torch.no_grad():
-            next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
-        next_value = torch.zeros_like(next_value)
-        rollouts.compute_returns(next_value, config.use_gae, config.gamma, config.gae_lambda)
-        value_loss, action_loss, dist_entropy = agent.update(rollouts)
+
+        action_loss, dist_entropy = agent.update(rollouts)
         rollouts.after_update()
 
         # save for every interval-th episode or for the last epoch
@@ -99,7 +96,6 @@ def main():
             config.tb.add_scalar("tran/max_return", np.max(episode_rewards), global_step=network_updates)
             config.tb.add_scalar("train/entropy", dist_entropy, global_step=network_updates)
             config.tb.add_scalar("train/mean_distance", np.mean(episode_distances), global_step=network_updates)
-            config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
 
 
