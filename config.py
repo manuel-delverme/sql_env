@@ -14,8 +14,8 @@ value_loss_coef = 0.5  # _, help='value loss coefficient (default: 0.5)')
 max_grad_norm = 0.5  # _, help='max norm of gradients (default: 0.5)')
 seed = 1  # _, help='random seed (default: 1)')
 num_processes = 1  # _, help='how many training CPU processes to use (default: 16)')
-num_steps = 30  # _, help='number of forward steps in A2C (default: 5)')
-ppo_epoch = 4  # _, help='number of ppo epochs (default: 4)')
+num_steps = 1
+ppo_epoch = 2  # _, help='number of ppo epochs (default: 4)')
 num_mini_batch = 1  # _, help='number of batches for ppo (default: 32)')
 clip_param = 0.2  # _, help='ppo clip parameter (default: 0.2)')
 log_interval = 100
@@ -31,12 +31,13 @@ use_linear_lr_decay = False  # _, help='use a linear schedule on the learning ra
 device = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 env_name = "SQL-v1"
 user = getpass.getuser()
+complexity = 4
 
 experiment_buddy.register(locals())
 HOST = "mila" if user in ("d3sm0", "esac") else ""
 DEBUG = sys.gettrace() is not None
-PROC_NUM = 2
-YAML_FILE = ""  # "params.yml"
+PROC_NUM = 8
+YAML_FILE = "env_suite.yml"
 tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM,
                              wandb_kwargs={"mode": "disabled" if DEBUG else "online",
                                            "entity": "rl-sql"})
