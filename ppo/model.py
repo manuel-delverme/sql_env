@@ -6,13 +6,16 @@ import torch.nn as nn
 class Policy(nn.Module):
     # output_vocab = sorted(set(string.ascii_lowercase + " " + string.digits + "'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
     output_vocab = sorted(set().union({
-        " UNION SELECT ", " NULL, ", " FROM ", " -- ",
-        " p ",
-        " a ",
-        # " ",
-        # " 1 ",
-        " ' ",
-        # " \" ",
+        " UNION SELECT a FROM p --",
+        # " UNION SELECT ",
+        # " NULL, ",
+        # " FROM ",
+        # " -- ",
+        # " p ",
+        # " a ",
+        " 1 ",  # escape for int
+        " ' ",  # escape for '
+        " \" ",  # escape for "
     }))
 
     def __init__(self, obs_shape, response_vocab, sequence_length, eps):

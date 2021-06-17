@@ -56,6 +56,8 @@ class SQLEnv(gym.Env):
         self.observation_space = TextSpace(output_vocab)
 
         self.target_query_length = config.complexity
+        assert self.target_query_length > 1, "lvl1 is bugged"
+
         self.action_space = TextSpace(output_vocab, self.target_query_length)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
@@ -74,13 +76,14 @@ class SQLEnv(gym.Env):
         elif "nationality=\"{input}\"" in self.query_template:
             escape = '"'
         else:
-            escape = ''
+            escape = '1'
         if escape in input_query:
             input_query.format(escape=escape)
-        solution = [" 1 ", escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
+        solution = [escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
+        # precompleted_query = "".join(solution[self.target_query_length:])
+        # completed_input_query = input_query + precompleted_query
 
-        completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
-        # completed_input_query = input_query
+        completed_input_query = input_query
 
         http_code = http.client.OK
         content = ""
@@ -112,26 +115,25 @@ class SQLEnv(gym.Env):
         similarity = 0
         for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
             similarity += float(i.strip() == s.strip()) / self.target_query_length
-            # reward += 0.1 * distance
+            # reward += 0.01 * similarity
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
             # reward = -1
             # reward = 0
-
-        if "no such column" in content:
+        elif "no such column" in content:
             content = "no such column"
 
-        if "no such table" in content:
+        elif "no such table" in content:
             content = "no such table"
 
-        if "unrecognized token" in content:
+        elif "unrecognized token" in content:
             content = "unrecognized token"
 
-        if "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
+        elif "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
             content = "SELECTs to the left and right of UNION do not have the same number of result columns"
 
-        if "Incorrect number of bindings supplied" in content:
+        elif "Incorrect number of bindings supplied" in content:
             content = "Incorrect number of bindings supplied"
 
         out_tokens = content.split(" ")
@@ -141,7 +143,6 @@ class SQLEnv(gym.Env):
                 print("Query: ", input_query)
                 print("returns: ", content)
             content = "UNK"
-        content = "UNK"
 
         return content, reward, terminal, {'similarity': similarity}
 
@@ -151,10 +152,10 @@ class SQLEnv(gym.Env):
         selected_columns = constants.columns[0]
         hidden_parameter = np.random.choice([
             "firstname='{input}'",
-            # "nationality=\"{input}\"",
-            # "age={input}",
+            "nationality=\"{input}\"",
+            "age={input}",
         ])
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
         # 1' UNION SELECT a, NULL, NULL FROM p --
-        state, _, _, _ = self.step("1")
+        state, _, _, _ = self.step("--")
         return state
