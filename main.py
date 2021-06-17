@@ -103,7 +103,7 @@ def main():
             config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
 
-            if np.mean(episode_rewards) == 1:
+            if np.mean(episode_rewards) > 1:
                 return
 
 
