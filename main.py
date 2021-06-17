@@ -104,6 +104,7 @@ def main():
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
 
             if np.mean(episode_rewards) == 1:
+                print(f"problem  {config.complexity} solved.")
                 return
 
 
