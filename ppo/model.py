@@ -1,4 +1,5 @@
 import string
+from collections import defaultdict
 
 import numpy as np
 import torch
@@ -87,12 +88,13 @@ class Policy(nn.Module):
 
 
 class MLPBase(nn.Module):
-    def __init__(self, num_inputs, dictionary_size, query_length,eps,  hidden_size=64):
+    def __init__(self, num_inputs, dictionary_size, query_length, eps, hidden_size=64):
         super().__init__()
         self._query_length = query_length
         self._hidden_size = hidden_size
         self.gru = nn.GRU(num_inputs, hidden_size)
         self.eps = eps
+        self.action_count = {k: 0 for k in range(10)}
 
         self.end_of_line = dictionary_size
         self.actor = AutoregressiveActor(hidden_size, hidden_size, dictionary_size)
@@ -120,7 +122,12 @@ class MLPBase(nn.Module):
             word_logprobs, rnn_hxs = self.actor(rnn_hxs)
             word = torch.distributions.Categorical(logits=word_logprobs).sample()
             if torch.rand((1,)) < self.eps:
-                word = torch.distributions.Categorical(logits=torch.ones_like(word_logprobs)).sample()
+                self.action_count[int(word)] += 1
+                prior = torch.tensor([v for v in self.action_count.values()], dtype=torch.float32)
+                prior /= prior.sum()
+                prior = 1 - prior
+                word = torch.distributions.Categorical(probs=prior).sample()
+                word = word.reshape((1,))
             query.append(word)
             query_logprobs.append(word_logprobs)
         # b x t x k

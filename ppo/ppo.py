@@ -34,6 +34,7 @@ class PPO:
                 # Reshape to do in a single forward pass for all steps
                 values, action_log_probs, parsed_actions = self.actor_critic.evaluate_actions(obs_batch, actions_batch)
 
+                entropy =  - torch.einsum('btx,btx->bt',torch.exp(action_log_probs),  action_log_probs).mean()
                 action_log_probs = torch.einsum("btx,btx->bt", action_log_probs, parsed_actions)
                 old_action_log_probs_batch = torch.einsum("btx,btx->bt", old_action_log_probs_batch, parsed_actions)
                 ratio = torch.exp(action_log_probs - old_action_log_probs_batch)
@@ -44,10 +45,10 @@ class PPO:
                 value_loss = 0.5 * (return_batch - values).pow(2).mean()
 
                 self.optimizer.zero_grad()
-                action_loss.backward()
+                (action_loss + entropy).backward()
                 # nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
                 self.optimizer.step()
-
+                dist_entropy_epoch += entropy.item()
                 value_loss_epoch += value_loss.item()
                 action_loss_epoch += action_loss.item()
 
