@@ -103,17 +103,18 @@ class SQLEnv(gym.Env):
         # else:
         #     reward = -.1
         if found_flag:
-            reward = 1.
+            reward = 10.
             terminal = True
 
         distance = 0
         for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
-            distance += float(i.strip() == s.strip())
+            distance += float(i.strip() == s.strip()) / self.target_query_length
             reward += 0.1 * distance
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
-            reward = -.1
+            # reward = -1
+            reward = 0
 
         if "no such column" in content:
             content = "no such column"
