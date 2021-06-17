@@ -1,5 +1,3 @@
-import string
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -35,10 +33,9 @@ class Policy(nn.Module):
     def act(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
         value, batch_query, query_logprobs = self.base(embeds)
-        batch_size, query_length, _ = batch_query.shape
         queries = []
         for query_idx in batch_query:
-            query_tokens = [self.output_vocab[idx] for idx in query_idx]
+            query_tokens = [self.output_vocab[torch.argmax(idx)] for idx in query_idx]
             queries.append(query_tokens)
         return value, np.array(queries), query_logprobs
 
@@ -93,7 +90,7 @@ class MLPBase(nn.Module):
         self.eps = eps
 
         self.end_of_line = dictionary_size
-        self.actor = AutoregressiveActor(hidden_size, hidden_size, dictionary_size)
+        self.actor = AutoregressiveActor(hidden_size, hidden_size, dictionary_size, query_length)
         self.critic = nn.Sequential(
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
@@ -105,38 +102,30 @@ class MLPBase(nn.Module):
         collect = []
         for x in inputs:
             assert x.ndim == 2
-            _, rnn_hxs = self.gru(x.unsqueeze(1), None)  # (seq_len, batch, input_size)
+            _, rnn_hxs = self.gru(x.unsqueeze(1), None)
             collect.append(rnn_hxs.squeeze(0))
         rnn_hxs = torch.cat(collect)
         # TODO: this was _x instead of rnn_hxs, but i want to remove the time dimension
         # TODO fix this with logprop
         value = self.critic(rnn_hxs)
-        query = []
-        query_logprobs = []
-
-        for _ in range(self._query_length):
-            word_logprobs, rnn_hxs = self.actor(rnn_hxs)
-            word = torch.distributions.Categorical(logits=word_logprobs).sample()
-            if torch.rand((1,)) < self.eps:
-                word = torch.distributions.Categorical(logits=torch.ones_like(word_logprobs)).sample()
-            query.append(word)
-            query_logprobs.append(word_logprobs)
-        # b x t x k
-        query_logprobs = torch.stack(query_logprobs, dim=1)
-        query = torch.stack(query, dim=1).unsqueeze(-1)
+        query_logprobs = self.actor(rnn_hxs)
+        query = torch.distributions.Multinomial(logits=query_logprobs).sample()
         assert query.shape[:2] == query_logprobs.shape[:2]
         return value, query, query_logprobs
 
 
 class AutoregressiveActor(nn.Module):
-    def __init__(self, num_inputs, hidden_size, dictionary_size):
+    def __init__(self, num_inputs, hidden_size, dictionary_size, sequence_length):
         super().__init__()
+        self.dictionary_size, self.sequence_length = dictionary_size, sequence_length
+
         self.hidden_to_hidden = nn.Linear(num_inputs, hidden_size)
-        self.hidden_to_output = nn.Linear(hidden_size, dictionary_size)
+        self.hidden_to_output = nn.Linear(hidden_size, dictionary_size * sequence_length)
 
     def forward(self, hidden):
-        next_hidden = self.hidden_to_hidden(hidden)
         output = self.hidden_to_output(hidden)
-        output_prob = torch.log_softmax(output, 1)
+        output = output.reshape(-1, self.sequence_length, self.dictionary_size)
 
-        return output_prob, next_hidden
+        output_prob = torch.log_softmax(output, 2)
+
+        return output_prob
