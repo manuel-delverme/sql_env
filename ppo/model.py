@@ -21,9 +21,7 @@ class Policy(nn.Module):
         self.output_token_to_idx = {word: idx for idx, word in enumerate(self.output_vocab)}
 
         self.embeddings_in = nn.Embedding(len(self.query_vocab), EMBEDDING_DIM)
-        self.embeddings_out = nn.Embedding(len(self.output_vocab), EMBEDDING_DIM)
-        self.embeddings_in.weight.requires_grad = False
-        self.embeddings_out.weight.requires_grad = False
+        self.embeddings_in.weight.requires_grad = True
 
         self.base = MLPBase(EMBEDDING_DIM, len(self.output_vocab), sequence_length, eps=eps)
 
@@ -87,7 +85,7 @@ class Policy(nn.Module):
 
 
 class MLPBase(nn.Module):
-    def __init__(self, num_inputs, dictionary_size, query_length,eps,  hidden_size=64):
+    def __init__(self, num_inputs, dictionary_size, query_length, eps, hidden_size=64):
         super().__init__()
         self._query_length = query_length
         self._hidden_size = hidden_size

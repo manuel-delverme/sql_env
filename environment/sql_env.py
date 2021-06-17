@@ -106,8 +106,10 @@ class SQLEnv(gym.Env):
             reward = 1.
             terminal = True
 
+        distance = 0
         for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
-            reward += 0.1 * float(i.isupper() == s.isupper())
+            distance += float(i.strip() == s.strip())
+            reward += 0.1 * distance
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
@@ -136,7 +138,7 @@ class SQLEnv(gym.Env):
                 print("returns: ", content)
             content = "UNK"
 
-        return content, reward, terminal, {}
+        return content, reward, terminal, {'distance': distance}
 
     def reset(self):
         np.random.seed(0)

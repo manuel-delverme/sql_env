@@ -42,6 +42,7 @@ def main():
     rollouts.to(config.device)
 
     episode_rewards = deque(maxlen=10)
+    episode_distances = deque()
 
     start = time.time()
     num_updates = int(config.num_env_steps) // config.num_steps // config.num_processes
@@ -49,6 +50,8 @@ def main():
     data = []
 
     for network_updates in tqdm.trange(num_updates):
+        episode_distances.clear()
+
         for rollout_step in range(config.num_steps):
             with torch.no_grad():
                 value, batch_queries, action_log_prob = actor_critic.act(rollouts.obs[rollout_step])
@@ -62,6 +65,8 @@ def main():
             for info in infos:
                 if 'episode' in info.keys():
                     episode_rewards.append(info['episode']['r'])
+
+                episode_distances.append(info['distance'])
 
             # If done then clean the history of observations.
             masks = torch.tensor(1 - done, dtype=torch.float32)
@@ -88,6 +93,7 @@ def main():
             config.tb.add_scalar("tran/avg_rw", np.mean(episode_rewards), global_step=network_updates)
             config.tb.add_scalar("tran/max_return", np.max(episode_rewards), global_step=network_updates)
             config.tb.add_scalar("train/entropy", dist_entropy, global_step=network_updates)
+            config.tb.add_scalar("train/mean_distance", np.mean(episode_distances), global_step=network_updates)
             config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
 
