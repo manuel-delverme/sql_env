@@ -31,11 +31,11 @@ use_linear_lr_decay = False  # _, help='use a linear schedule on the learning ra
 device = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 env_name = "SQL-v1"
 user = getpass.getuser()
-complexity = 2
+complexity = 6
 
 experiment_buddy.register(locals())
 HOST = "mila" if user in ("d3sm0", "esac") else ""
 DEBUG = sys.gettrace() is not None
-PROC_NUM = 1
-YAML_FILE = ""  # "env_suite.yml"
+PROC_NUM = 5
+YAML_FILE = "env_suite.yml"
 tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM, wandb_kwargs={"mode": "disabled" if DEBUG else "online", "entity": "rl-sql"})
