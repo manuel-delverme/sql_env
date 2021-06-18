@@ -1,19 +1,62 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
+import config
 
 
 class Policy(nn.Module):
     # output_vocab = sorted(set(string.ascii_lowercase + " " + string.digits + "'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
-    output_vocab = sorted(set().union({
-        " UNION SELECT a FROM p --",
-        # " UNION SELECT ",
-        # " NULL, ",
-        # " FROM ",
-        # " -- ",
-        # " p ",
-        # " a ",
+    # " UNION SELECT ",
+    # " NULL, ",
+    # " FROM ",
+    # " -- ",
+    # " p ",
+    # " a ",
+    if config.complexity == 2:
+        COST_STR = " UNION SELECT a FROM p --"
+        voc = []
+    elif config.complexity == 4:
+        COST_STR = "a FROM p --"
+        voc = [
+            " UNION SELECT ",
+        ]
+    elif config.complexity == 4:
+        COST_STR = "FROM p --"
+        voc = [
+            " UNION SELECT ",
+            # " NULL, ",
+            " a ",
+        ]
+    elif config.complexity == 5:
+        COST_STR = "p --"
+        voc = [
+            " UNION SELECT ",
+            # " NULL, ",
+            " a ",
+            " FROM ",
+        ]
+    elif config.complexity == 6:
+        COST_STR = "--"
+        voc = [
+            " UNION SELECT ",
+            # " NULL, ",
+            " a ",
+            " FROM ",
+            " p ",
+        ]
+    elif config.complexity == 7:
+        COST_STR = ""
+        voc = [
+            " UNION SELECT ",
+            # " NULL, ",
+            " a ",
+            " FROM ",
+            " p ",
+            " -- ",
+        ]
+
+    output_vocab = sorted(set(voc).union({
         " 1 ",  # escape for int
         " ' ",  # escape for '
         " \" ",  # escape for "
@@ -72,7 +115,7 @@ class Policy(nn.Module):
         # exted in batch dimension as this is used to estimate the value at last state
         # remove me when multiple env
         # embeds = embeds.unsqueeze(1)
-        value, _, _,_ = self.base(embeds)
+        value, _, _, _ = self.base(embeds)
         return value
 
     def evaluate_actions(self, batch_response, actions):
@@ -124,7 +167,6 @@ class MLPBase(nn.Module):
         value = self.critic(rnn_hxs)
         query_logprobs = self.actor(rnn_hxs)
         concentration = self.prior(rnn_hxs)
-        #concentration = F.normalize(prior, 1, -1)
         query = torch.distributions.Multinomial(logits=query_logprobs).sample()
         assert query.shape[:2] == query_logprobs.shape[:2]
         return value, query, query_logprobs, concentration

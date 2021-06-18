@@ -31,7 +31,7 @@ use_linear_lr_decay = False  # _, help='use a linear schedule on the learning ra
 device = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 env_name = "SQL-v1"
 user = getpass.getuser()
-complexity = 2
+complexity = 4
 
 experiment_buddy.register(locals())
 HOST = "mila" if user in ("d3sm0", "esac") else ""
