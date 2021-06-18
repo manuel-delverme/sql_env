@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class Policy(nn.Module):
@@ -40,7 +41,7 @@ class Policy(nn.Module):
 
     def act(self, batch_response):
         embeds = self.html_to_embedd(batch_response)
-        value, batch_query, query_logprobs = self.base(embeds)
+        value, batch_query, query_logprobs, _ = self.base(embeds)
         queries = []
         for query_idx in batch_query:
             query_tokens = [self.output_vocab[torch.argmax(idx)] for idx in query_idx]
@@ -67,13 +68,12 @@ class Policy(nn.Module):
         # exted in batch dimension as this is used to estimate the value at last state
         # remove me when multiple env
         # embeds = embeds.unsqueeze(1)
-        value, _, _ = self.base(embeds)
+        value, _, _,_ = self.base(embeds)
         return value
 
     def evaluate_actions(self, batch_response, actions):
         embeds = self.html_to_embedd(batch_response)
-        # here we extend in the time domain instead as we ware batching
-        value, query, query_logprobs = self.base(embeds)
+        value, query, query_logprobs, concentration = self.base(embeds)
         parsed_actions = []
         for token_sequence in actions:
             for token in token_sequence:
@@ -83,7 +83,7 @@ class Policy(nn.Module):
                 parsed_actions.append(action_vector)
         parsed_actions = torch.stack(parsed_actions, dim=0).reshape(query_logprobs.shape)
 
-        return value, query_logprobs, parsed_actions
+        return value, query_logprobs, parsed_actions, concentration
 
 
 class MLPBase(nn.Module):
@@ -101,6 +101,10 @@ class MLPBase(nn.Module):
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
+        self.prior = nn.Sequential(
+            nn.Linear(hidden_size, query_length),
+            nn.Softmax(),
+        )
         self.train()
 
     def forward(self, batched_x):
@@ -115,12 +119,11 @@ class MLPBase(nn.Module):
 
         value = self.critic(rnn_hxs)
         query_logprobs = self.actor(rnn_hxs)
-        if torch.rand((1,)) < 0.1:
-            query = torch.distributions.Multinomial(logits=(query_logprobs + torch.ones_like(query_logprobs)) / 2).sample()
-        else:
-            query = torch.distributions.Multinomial(logits=query_logprobs).sample()
+        concentration = self.prior(rnn_hxs)
+        #concentration = F.normalize(prior, 1, -1)
+        query = torch.distributions.Multinomial(logits=query_logprobs).sample()
         assert query.shape[:2] == query_logprobs.shape[:2]
-        return value, query, query_logprobs
+        return value, query, query_logprobs, concentration
 
 
 class AutoregressiveActor(nn.Module):
