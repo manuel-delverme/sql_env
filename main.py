@@ -42,6 +42,7 @@ def main():
     rollouts.to(config.device)
 
     episode_rewards = deque(maxlen=10)
+    success_rate = deque(maxlen=100)
     episode_distances = deque()
 
     start = time.time()
@@ -60,6 +61,8 @@ def main():
 
             queries = ["".join(query) for query in batch_queries]
             obs, reward, done, infos = envs.step(queries)
+            if done:
+                success_rate.append(reward)
 
             if network_updates % config.log_query_interval == 0 and network_updates:
                 data.extend([[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
@@ -96,14 +99,14 @@ def main():
             config.tb.add_histogram("train/log_prob", action_logprob, global_step=network_updates)
             config.tb.add_histogram('train/log_prob_per_action', np.histogram(np.arange(action_logprob.shape[0]), weights=action_logprob), global_step=network_updates)
             config.tb.add_scalar("train/fps", int(total_num_steps / (end - start)), global_step=network_updates)
-            config.tb.add_scalar("tran/avg_rw", np.mean(episode_rewards), global_step=network_updates)
-            config.tb.add_scalar("tran/max_return", np.max(episode_rewards), global_step=network_updates)
+            config.tb.add_scalar("train/avg_rw", np.mean(episode_rewards), global_step=network_updates)
+            config.tb.add_scalar("train/max_return", np.max(episode_rewards), global_step=network_updates)
             config.tb.add_scalar("train/entropy", dist_entropy, global_step=network_updates)
             config.tb.add_scalar("train/mean_distance", np.mean(episode_distances), global_step=network_updates)
             config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
 
-            if np.mean(episode_rewards) >= 1:
+            if np.mean(success_rate) >= 0.95:
                 return
 
 
