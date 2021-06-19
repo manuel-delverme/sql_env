@@ -107,6 +107,7 @@ def main():
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
 
             if np.mean(success_rate) >= 0.95:
+                print("Done :)")
                 return
 
 
