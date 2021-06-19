@@ -6,17 +6,7 @@ import config
 
 
 class Policy(nn.Module):
-    # output_vocab = sorted(set(string.ascii_lowercase + " " + string.digits + "'\"").union({" UNION SELECT ", " NULL, ", " FROM ", " -- "}))
-    # " UNION SELECT ",
-    # " NULL, ",
-    # " FROM ",
-    # " -- ",
-    # " p ",
-    # " a ",
-    if config.complexity == 2:
-        COST_STR = " UNION SELECT a FROM p --"
-        voc = []
-    elif config.complexity == 4:
+    if config.complexity == 3:
         COST_STR = "a FROM p --"
         voc = [
             " UNION SELECT ",
@@ -25,14 +15,14 @@ class Policy(nn.Module):
         COST_STR = "FROM p --"
         voc = [
             " UNION SELECT ",
-            # " NULL, ",
+            " NULL, ",
             " a ",
         ]
     elif config.complexity == 5:
         COST_STR = "p --"
         voc = [
             " UNION SELECT ",
-            # " NULL, ",
+            " NULL, ",
             " a ",
             " FROM ",
         ]
@@ -40,7 +30,7 @@ class Policy(nn.Module):
         COST_STR = "--"
         voc = [
             " UNION SELECT ",
-            # " NULL, ",
+            " NULL, ",
             " a ",
             " FROM ",
             " p ",
@@ -49,7 +39,7 @@ class Policy(nn.Module):
         COST_STR = ""
         voc = [
             " UNION SELECT ",
-            # " NULL, ",
+            " NULL, ",
             " a ",
             " FROM ",
             " p ",

@@ -39,7 +39,6 @@ class SQLEnv(gym.Env):
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
         self.cursor.execute("CREATE TABLE p(id INTEGER PRIMARY KEY AUTOINCREMENT, userid INT, a TEXT)")
-
         self.cursor.execute("INSERT INTO p(id, userid, a) VALUES(NULL, 1, 'accountnr:123456!')")
 
         data = []
@@ -55,7 +54,7 @@ class SQLEnv(gym.Env):
 
         self.observation_space = TextSpace(output_vocab)
 
-        self.target_query_length = config.complexity
+        self.target_query_length = config.complexity + self.max_columns - 1
         assert self.target_query_length > 1, "lvl1 is bugged"
 
         self.action_space = TextSpace(output_vocab, self.target_query_length)
@@ -150,15 +149,13 @@ class SQLEnv(gym.Env):
         return content, reward, terminal, {'similarity': similarity}
 
     def reset(self):
-        # columns = np.random.randint(1, self.max_columns + 1)
-        # selected_columns = ", ".join(constants.columns[:columns])
-        selected_columns = constants.columns[0]
+        columns = np.random.randint(1, self.max_columns + 1)
+        selected_columns = ", ".join(constants.columns[:columns])
         hidden_parameter = np.random.choice([
             "firstname='{input}'",
             "nationality=\"{input}\"",
             "age={input}",
         ])
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
-        # 1' UNION SELECT a, NULL, NULL FROM p --
         state, _, _, _ = self.step("--")
         return state
