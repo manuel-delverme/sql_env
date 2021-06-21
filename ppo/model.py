@@ -57,7 +57,7 @@ class Policy(nn.Module):
 
     def __init__(self, obs_shape, response_vocab, sequence_length, eps):
         super(Policy, self).__init__()
-        EMBEDDING_DIM = 10
+        EMBEDDING_DIM = 256
 
         # test
         # minial number of token
@@ -67,7 +67,7 @@ class Policy(nn.Module):
         self.output_token_to_idx = {word: torch.tensor([idx], device=config.device) for idx, word in enumerate(self.output_vocab)}
 
         self.embeddings_in = nn.Embedding(len(self.response_vocab), EMBEDDING_DIM)
-        self.embeddings_in.weight.requires_grad = True
+        self.embeddings_in.weight.requires_grad = False
 
         self.base = MLPBase(EMBEDDING_DIM, len(self.output_vocab), sequence_length, eps=eps)
 
@@ -130,9 +130,9 @@ class MLPBase(nn.Module):
         self._query_length = query_length
         self._hidden_size = hidden_size
         self.gru = nn.GRU(num_inputs, hidden_size)
-        self.eps = eps
+        # self.eps = eps
 
-        self.end_of_line = dictionary_size
+        # self.end_of_line = dictionary_size
         self.actor = AutoregressiveActor(hidden_size, hidden_size, dictionary_size, query_length)
         self.critic = nn.Sequential(
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
@@ -145,19 +145,19 @@ class MLPBase(nn.Module):
         )
         self.train()
 
-    def forward(self, batched_x):
-        batch_forwards = []
-        for x_i in batched_x:
-            assert x_i.ndim == 2
-            _, rnn_hxs = self.gru(x_i.unsqueeze(1), None)
-            batch_forwards.append(rnn_hxs.squeeze(0))
-        rnn_hxs = torch.cat(batch_forwards)
-        # TODO: this was _x instead of rnn_hxs, but i want to remove the time dimension
-        # TODO fix this with logprop
+    def forward(self, batched_embeddings):
+        batched_response_vectors = []
+        for response_embedding in batched_embeddings:
+            assert response_embedding.ndim == 2
+            _, response_vector = self.gru(response_embedding.unsqueeze(1), None)
+            batched_response_vectors.append(response_vector.squeeze(1))
 
-        value = self.critic(rnn_hxs)
-        query_logprobs = self.actor(rnn_hxs)
-        concentration = self.prior(rnn_hxs)
+        batched_response_vectors = torch.cat(batched_response_vectors, 0)
+
+        value = self.critic(batched_response_vectors)
+        query_logprobs = self.actor(batched_response_vectors)
+        concentration = self.prior(batched_response_vectors)
+
         query = torch.distributions.Multinomial(logits=query_logprobs).sample()
         assert query.shape[:2] == query_logprobs.shape[:2]
         return value, query, query_logprobs, concentration
@@ -168,8 +168,11 @@ class AutoregressiveActor(nn.Module):
         super().__init__()
         self.dictionary_size, self.sequence_length = dictionary_size, sequence_length
 
-        self.hidden_to_hidden = nn.Linear(num_inputs, hidden_size)
-        self.hidden_to_output = nn.Linear(hidden_size, dictionary_size * sequence_length)
+        self.hidden_to_output = nn.Sequential(
+            # nn.Linear(num_inputs, hidden_size),
+            # nn.Linear(hidden_size, hidden_size),
+            nn.Linear(hidden_size, dictionary_size * sequence_length),
+        )
 
     def forward(self, hidden):
         output = self.hidden_to_output(hidden)
