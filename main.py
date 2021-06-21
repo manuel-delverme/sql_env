@@ -6,12 +6,11 @@ import numpy as np
 import torch
 import tqdm
 
-import constants
-import wandb
-
 import config
+import constants
 import environment  # noqa
 import ppo.model
+import wandb
 from ppo import utils
 from ppo.envs import make_vec_envs
 from ppo.storage import RolloutStorage
@@ -49,6 +48,7 @@ def main():
 
     start = time.time()
     num_updates = int(config.num_env_steps) // config.num_steps // config.num_processes
+    successes = 0
 
     data = []
 
@@ -70,7 +70,7 @@ def main():
             for info in infos:
                 if 'episode' in info.keys():
                     # It's done.
-                    r = info['episode']['r'] # .detach().numpy()
+                    r = info['episode']['r']  # .detach().numpy()
                     episode_rewards.append(r)
                     success_rate[info['columns']].append(r)
                     # agent.entropy_coef /= (1 + float(success_rate[-1]))
@@ -83,7 +83,7 @@ def main():
             rollouts.insert(obs, batch_queries, action_log_prob, value, reward, masks)
 
         if network_updates % config.log_query_interval == 0 and network_updates:
-            config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
+            config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation", "template"], data=data)})
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
 
@@ -92,9 +92,9 @@ def main():
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
         rollouts.after_update()
 
-        # save for every interval-th episode or for the last epoch
-        if network_updates % config.save_interval == 0 or network_updates == num_updates - 1:
-            config.tb.add_object("model", actor_critic, global_step=network_updates)
+        # # save for every interval-th episode or for the last epoch
+        # if network_updates % config.save_interval == 0 or network_updates == num_updates - 1:
+        #     config.tb.add_object("model", actor_critic, global_step=network_updates)
 
         if network_updates % config.log_interval == 0 and len(episode_rewards) > 1:
             total_num_steps = (network_updates + 1) * config.num_processes * config.num_steps
@@ -111,10 +111,14 @@ def main():
             config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
             for idx, sr in enumerate(success_rate):
-                config.tb.add_scalar(f"train/success_rate{idx}", np.mean(sr), global_step=network_updates)
+                if len(sr):
+                    config.tb.add_scalar(f"train/success_rate{idx + 1}", np.mean(sr), global_step=network_updates)
 
             if len(success_rate[-1]) == success_rate[-1].maxlen and np.mean(success_rate[-1]) >= 0.75:
-                return
+                successes += 1
+                if successes > 10:
+                    print("Done :)")
+                    return
 
 
 if __name__ == "__main__":

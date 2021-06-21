@@ -65,32 +65,19 @@ class SQLEnv(gym.Env):
         self.query_template = None
         self.reset()
 
-    def step(self, input_query: str):
-        assert isinstance(input_query, str)
+    def step(self, user_query: str):
+        assert isinstance(user_query, str)
         # We can use the same database as long as we change the hidden query
 
-        solution = self.get_solution(input_query)
-        # precompleted_query = "".join(solution[self.target_query_length:])
+        solution = self.get_solution(user_query)
+        solution_query = "".join(solution)
         # completed_input_query = input_query + precompleted_query
 
-        completed_input_query = input_query
-
         http_code = http.client.OK
-        content = ""
-        found_flag = False
-        query = self.query_template.format(input=completed_input_query)
 
-        try:
-            self.cursor.execute(query)
-            for some in self.cursor.fetchall():
-                for f in some:
-                    # content += str(f) + ";"  # "{'-' if f is None else f}\n"
-                    f = str(f)
-                    if 'account' in f and '!' in f:
-                        found_flag = True
-        except Exception as ex:
-            content += str(ex)
-            http_code = http.client.INTERNAL_SERVER_ERROR
+        content, found_flag = self.query_db(user_query)
+        _, found_flag_ = self.query_db(solution_query)
+        assert found_flag_
 
         terminal = False
 
@@ -102,7 +89,7 @@ class SQLEnv(gym.Env):
             reward = 1.
             terminal = True
 
-        similarity = self.get_similarity(input_query, solution)
+        similarity = self.get_similarity(user_query, solution)
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
@@ -130,7 +117,7 @@ class SQLEnv(gym.Env):
 
         if set(out_tokens).difference(self.action_space.vocab):
             if not terminal:
-                print("Query: ", input_query)
+                print("Query: ", user_query)
                 print("returns: ", content)
             content = "UNK"
 
@@ -139,6 +126,23 @@ class SQLEnv(gym.Env):
             'columns': self.query_template.split(" FROM ")[0].count(','),
             'template': self.query_template,
         }
+
+    def query_db(self, user_query):
+        query = self.query_template.format(input=user_query)
+        content = ""
+        found_flag = False
+        try:
+            self.cursor.execute(query)
+            for some in self.cursor.fetchall():
+                for f in some:
+                    # content += str(f) + ";"  # "{'-' if f is None else f}\n"
+                    f = str(f)
+                    if 'account' in f and '!' in f:
+                        found_flag = True
+        except Exception as ex:
+            content += str(ex)
+            http_code = http.client.INTERNAL_SERVER_ERROR
+        return content, found_flag
 
     def get_similarity(self, input_query, solution):
         similarity = 0

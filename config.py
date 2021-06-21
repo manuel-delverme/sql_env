@@ -28,7 +28,6 @@ no_cuda = False  # _, help='disables CUDA training')
 recurrent_policy = False  # _, help='use a recurrent policy')
 use_linear_lr_decay = False  # _, help='use a linear schedule on the learning rate')
 
-
 num_steps = 30  # episode length
 device = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 env_name = "SQL-v1"
@@ -39,5 +38,5 @@ experiment_buddy.register(locals())
 DEBUG = sys.gettrace() is not None
 PROC_NUM = 1
 HOST = "mila" if user in ("d3sm0", "esac") else ""
-YAML_FILE = "env_suite.yml"
+YAML_FILE = ""  # "env_suite.yml"
 tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM, wandb_kwargs={"mode": "disabled" if DEBUG else "online", "entity": "rl-sql"})
