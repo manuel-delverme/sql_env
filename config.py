@@ -28,7 +28,6 @@ no_cuda = False  # _, help='disables CUDA training')
 recurrent_policy = False  # _, help='use a recurrent policy')
 use_linear_lr_decay = False  # _, help='use a linear schedule on the learning rate')
 
-
 num_steps = 30  # episode length
 device = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 env_name = "SQL-v1"
