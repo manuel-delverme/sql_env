@@ -62,7 +62,7 @@ def main():
             queries = ["".join(query) for query in batch_queries]
             obs, reward, done, infos = envs.step(queries)
             if done:
-                success_rate.append(reward)
+                success_rate.append(reward.detach().numpy())
 
             if network_updates % config.log_query_interval == 0 and network_updates:
                 data.extend([[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
@@ -105,8 +105,9 @@ def main():
             config.tb.add_scalar("train/mean_distance", np.mean(episode_distances), global_step=network_updates)
             config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
+            config.tb.add_scalar("train/success_rate", np.mean(success_rate), global_step=network_updates)
 
-            if np.mean(success_rate) >= 0.95:
+            if len(success_rate) == success_rate.maxlen and np.mean(success_rate) >= 0.75:
                 print("Done :)")
                 return
 
