@@ -45,10 +45,11 @@ class SQLEnv(gym.Env):
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
         output_vocab = {
             "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
-            'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
-            *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
-            *"Incorrect number of bindings supplied".split(),
-            *"no such table".split(),
+            # 'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
+            # *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
+            *"columns",
+            # *"Incorrect number of bindings supplied".split(),
+            # *"no such table".split(),
             "success", "UNK"
         }
 
@@ -90,6 +91,7 @@ class SQLEnv(gym.Env):
             terminal = True
 
         similarity = self.get_similarity(user_query, solution)
+        reward += 0.01 * similarity
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
@@ -105,10 +107,11 @@ class SQLEnv(gym.Env):
             content = "unrecognized token"
 
         elif "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
-            content = "SELECTs to the left and right of UNION do not have the same number of result columns"
+            content = "columns"
 
         elif "Incorrect number of bindings supplied" in content:
-            content = "Incorrect number of bindings supplied"
+            # content = "Incorrect number of bindings supplied"
+            content = "UNK"
 
         if not content:
             content = "success"
@@ -125,6 +128,7 @@ class SQLEnv(gym.Env):
             'similarity': similarity,
             'columns': self.query_template.split(" FROM ")[0].count(','),
             'template': self.query_template,
+            'solved': found_flag,
         }
 
     def query_db(self, user_query):
@@ -148,7 +152,6 @@ class SQLEnv(gym.Env):
         similarity = 0
         for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
             similarity += float(i.strip() == s.strip()) / self.target_query_length
-            # reward += 0.01 * similarity
         return similarity
 
     def get_solution(self, input_query):
