@@ -10,6 +10,7 @@ class Policy(nn.Module):
         COST_STR = "a FROM p --"
         voc = [
             " UNION SELECT ",
+            " NULL, ",
         ]
     elif config.complexity == 4:
         COST_STR = "FROM p --"
@@ -53,6 +54,7 @@ class Policy(nn.Module):
         " 1 ",  # escape for int
         " ' ",  # escape for '
         " \" ",  # escape for "
+        "",
     }))
 
     def __init__(self, obs_shape, response_vocab, sequence_length, eps):
