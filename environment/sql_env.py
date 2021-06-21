@@ -69,16 +69,7 @@ class SQLEnv(gym.Env):
         assert isinstance(input_query, str)
         # We can use the same database as long as we change the hidden query
 
-        cols = self.query_template.split(" FROM ")[0].count(',')
-        if "firstname='{input}'" in self.query_template:
-            escape = "'"
-        elif "nationality=\"{input}\"" in self.query_template:
-            escape = '"'
-        else:
-            escape = '1'
-        if escape in input_query:
-            input_query.format(escape=escape)
-        solution = [escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
+        solution = self.get_solution(input_query)
         # precompleted_query = "".join(solution[self.target_query_length:])
         # completed_input_query = input_query + precompleted_query
 
@@ -111,10 +102,7 @@ class SQLEnv(gym.Env):
             reward = 1.
             terminal = True
 
-        similarity = 0
-        for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
-            similarity += float(i.strip() == s.strip()) / self.target_query_length
-            # reward += 0.01 * similarity
+        similarity = self.get_similarity(input_query, solution)
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
@@ -147,6 +135,26 @@ class SQLEnv(gym.Env):
             content = "UNK"
 
         return content, reward, terminal, {'similarity': similarity}
+
+    def get_similarity(self, input_query, solution):
+        similarity = 0
+        for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
+            similarity += float(i.strip() == s.strip()) / self.target_query_length
+            # reward += 0.01 * similarity
+        return similarity
+
+    def get_solution(self, input_query):
+        cols = self.query_template.split(" FROM ")[0].count(',')
+        if "firstname='{input}'" in self.query_template:
+            escape = "'"
+        elif "nationality=\"{input}\"" in self.query_template:
+            escape = '"'
+        else:
+            escape = '1'
+        if escape in input_query:
+            input_query.format(escape=escape)
+        solution = [escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
+        return solution
 
     def reset(self):
         columns = np.random.randint(1, self.max_columns + 1)
