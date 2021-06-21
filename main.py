@@ -105,6 +105,7 @@ def main():
             config.tb.add_scalar("train/mean_distance", np.mean(episode_distances), global_step=network_updates)
             config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
+            config.tb.add_scalar("train/success_rate", np.mean(success_rate), global_step=network_updates)
 
             if np.mean(success_rate) >= 0.95:
                 print("Done :)")
