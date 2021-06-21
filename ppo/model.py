@@ -53,6 +53,7 @@ class Policy(nn.Module):
         " 1 ",  # escape for int
         " ' ",  # escape for '
         " \" ",  # escape for "
+        "",
     }))
 
     def __init__(self, obs_shape, response_vocab, sequence_length, eps):

@@ -91,7 +91,7 @@ class SQLEnv(gym.Env):
             terminal = True
 
         similarity = self.get_similarity(user_query, solution)
-        reward += 0.01 * similarity
+        # reward += 0.01 * similarity
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
@@ -158,7 +158,7 @@ class SQLEnv(gym.Env):
         similarity = 0
         for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
             similarity += float(i.strip() == s.strip()) / self.target_query_length
-        return similarity
+        return similarity / self.target_query_length
 
     def get_solution(self, input_query):
         cols = self.query_template.split(" FROM ")[0].count(',')
