@@ -46,7 +46,7 @@ class Policy(nn.Module):
             " -- ",
         ]
     else:
-        raise NotImplemented(config.complexity)
+        raise NotImplementedError(f"Complexity {config.complexity} is not implemented.")
 
     output_vocab = sorted(set(voc).union({
         COST_STR,
