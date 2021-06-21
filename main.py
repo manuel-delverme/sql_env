@@ -72,7 +72,8 @@ def main():
                     # It's done.
                     r = info['episode']['r']  # .detach().numpy()
                     episode_rewards.append(r)
-                    success_rate[info['columns']].append(r)
+                    solved = info["solved"]
+                    success_rate[info['columns']].append(solved)
                     # agent.entropy_coef /= (1 + float(success_rate[-1]))
 
                 episode_distances.append(info['similarity'])

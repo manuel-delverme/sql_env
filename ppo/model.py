@@ -57,7 +57,7 @@ class Policy(nn.Module):
 
     def __init__(self, obs_shape, response_vocab, sequence_length, eps):
         super(Policy, self).__init__()
-        EMBEDDING_DIM = 10
+        EMBEDDING_DIM = 100
 
         # test
         # minial number of token
@@ -168,8 +168,11 @@ class AutoregressiveActor(nn.Module):
         super().__init__()
         self.dictionary_size, self.sequence_length = dictionary_size, sequence_length
 
-        self.hidden_to_hidden = nn.Linear(num_inputs, hidden_size)
-        self.hidden_to_output = nn.Linear(hidden_size, dictionary_size * sequence_length)
+        self.hidden_to_output = nn.Sequential(
+            nn.Linear(num_inputs, hidden_size),
+            nn.Linear(hidden_size, hidden_size),
+            nn.Linear(hidden_size, dictionary_size * sequence_length),
+        )
 
     def forward(self, hidden):
         output = self.hidden_to_output(hidden)
