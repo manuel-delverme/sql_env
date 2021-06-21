@@ -1,5 +1,6 @@
-torch
+torch==1.7.1+cu110
 numpy
 gym
-git+https://github.com/ministry-of-silly-code/experiment_buddy.git@main#egg=experiment_buddy
 stable-baselines3
+icecream
+git+https://github.com/ministry-of-silly-code/experiment_buddy.git@main#egg=experiment_buddy

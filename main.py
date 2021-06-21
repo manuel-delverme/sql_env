@@ -5,11 +5,12 @@ from collections import deque
 import numpy as np
 import torch
 import tqdm
+import wandb
+from icecream import ic
 
 import config
 import environment  # noqa
 import ppo.model
-import wandb
 from ppo import utils
 from ppo.envs import make_vec_envs
 from ppo.storage import RolloutStorage
@@ -49,12 +50,16 @@ def main():
     num_updates = int(config.num_env_steps) // config.num_steps // config.num_processes
 
     data = []
+    ic()
 
     for network_updates in tqdm.trange(num_updates):
+        ic()
         episode_distances.clear()
+        ic()
         running_logprobs = torch.zeros(envs.action_space.sequence_length, len(ppo.model.Policy.output_vocab))
 
         for rollout_step in range(config.num_steps):
+            ic()
             with torch.no_grad():
                 value, batch_queries, action_log_prob = actor_critic.act(rollouts.obs[rollout_step])
             running_logprobs += action_log_prob[0]
@@ -62,12 +67,17 @@ def main():
             queries = ["".join(query) for query in batch_queries]
             obs, reward, done, infos = envs.step(queries)
             if done:
-                success_rate.append(reward)
+                success_rate.append(reward.detach().numpy())
+                ic()
+            ic()
 
             if network_updates % config.log_query_interval == 0 and network_updates:
+                ic()
                 data.extend([[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
+                ic()
 
             for info in infos:
+                ic()
                 if 'episode' in info.keys():
                     episode_rewards.append(info['episode']['r'])
 
@@ -75,23 +85,33 @@ def main():
 
             # If done then clean the history of observations.
             masks = torch.tensor(1 - done, dtype=torch.float32)
+            ic()
 
             rollouts.insert(obs, batch_queries, action_log_prob, value, reward, masks)
+            ic()
+
+        ic()
 
         if network_updates % config.log_query_interval == 0 and network_updates:
             config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})
+            ic()
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
+
+        ic()
         next_value = torch.zeros_like(next_value)
         rollouts.compute_returns(next_value, config.use_gae, config.gamma, config.gae_lambda)
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
         rollouts.after_update()
+        ic()
 
         # save for every interval-th episode or for the last epoch
         if network_updates % config.save_interval == 0 or network_updates == num_updates - 1:
+            ic()
             config.tb.add_object("model", actor_critic, global_step=network_updates)
 
         if network_updates % config.log_interval == 0 and len(episode_rewards) > 1:
+            ic()
             total_num_steps = (network_updates + 1) * config.num_processes * config.num_steps
 
             end = time.time()
@@ -105,9 +125,10 @@ def main():
             config.tb.add_scalar("train/mean_distance", np.mean(episode_distances), global_step=network_updates)
             config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
-
-            if np.mean(success_rate) >= 0.95:
-                print("Done :)")
+            config.tb.add_scalar("train/success_rate", np.mean(success_rate), global_step=network_updates)
+            ic()
+            if len(success_rate) == success_rate.maxlen and np.mean(success_rate) >= 0.75:
+                ic()
                 return
 
 
