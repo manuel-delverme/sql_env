@@ -5,6 +5,8 @@ from collections import deque
 import numpy as np
 import torch
 import tqdm
+
+import constants
 import wandb
 
 import config
@@ -42,7 +44,7 @@ def main():
     rollouts.to(config.device)
 
     episode_rewards = deque(maxlen=10)
-    success_rate = deque(maxlen=10)
+    success_rate = [deque(maxlen=100) for _ in range(constants.max_columns)]
     episode_distances = deque()
 
     start = time.time()
@@ -61,16 +63,17 @@ def main():
 
             queries = ["".join(query) for query in batch_queries]
             obs, reward, done, infos = envs.step(queries)
-            if done:
-                success_rate.append(reward.detach().numpy())
-                agent.entropy_coef /= (1 + float(success_rate[-1]))
 
             if network_updates % config.log_query_interval == 0 and network_updates:
                 data.extend([[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
 
             for info in infos:
                 if 'episode' in info.keys():
-                    episode_rewards.append(info['episode']['r'])
+                    # It's done.
+                    r = info['episode']['r'] # .detach().numpy()
+                    episode_rewards.append(r)
+                    success_rate[info['columns']].append(r)
+                    # agent.entropy_coef /= (1 + float(success_rate[-1]))
 
                 episode_distances.append(info['similarity'])
 
@@ -107,8 +110,10 @@ def main():
             config.tb.add_scalar("train/mean_distance", np.mean(episode_distances), global_step=network_updates)
             config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
             config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
-            config.tb.add_scalar("train/success_rate", np.mean(success_rate), global_step=network_updates)
-            if len(success_rate) == success_rate.maxlen and np.mean(success_rate) >= 0.75:
+            for idx, sr in enumerate(success_rate):
+                config.tb.add_scalar(f"train/success_rate{idx}", np.mean(sr), global_step=network_updates)
+
+            if len(success_rate[-1]) == success_rate[-1].maxlen and np.mean(success_rate[-1]) >= 0.75:
                 return
 
 

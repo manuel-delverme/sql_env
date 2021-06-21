@@ -134,7 +134,10 @@ class SQLEnv(gym.Env):
                 print("returns: ", content)
             content = "UNK"
 
-        return content, reward, terminal, {'similarity': similarity}
+        return content, reward, terminal, {
+            'similarity': similarity,
+            'columns': self.query_template.split(" FROM ")[0].count(','),
+        }
 
     def get_similarity(self, input_query, solution):
         similarity = 0
