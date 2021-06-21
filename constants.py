@@ -10,4 +10,4 @@ USERS_XML = """
 
 
 columns = ["id", "username", "firstname", "surname", "age", "nationality", "created_at"]
-max_columns = 3
+max_columns = 2
