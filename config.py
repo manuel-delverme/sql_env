@@ -36,7 +36,7 @@ complexity = 4
 
 experiment_buddy.register(locals())
 DEBUG = sys.gettrace() is not None
-PROC_NUM = 1
+PROC_NUM = 10
 HOST = "mila" if user in ("d3sm0", "esac") else ""
 YAML_FILE = "env_suite.yml"
 tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM, wandb_kwargs={"mode": "disabled" if DEBUG else "online", "entity": "rl-sql"})
