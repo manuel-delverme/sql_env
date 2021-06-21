@@ -46,7 +46,7 @@ class Policy(nn.Module):
             " -- ",
         ]
     else:
-        raise NotImplemented(config.complexity)
+        raise NotImplementedError(f"Complexity {config.complexity} is not implemented.")
 
     output_vocab = sorted(set(voc).union({
         COST_STR,
@@ -63,8 +63,8 @@ class Policy(nn.Module):
         # minial number of token
         self.response_vocab = sorted(response_vocab)
 
-        self.query_word_to_idx = {word: idx for idx, word in enumerate(self.response_vocab)}
-        self.output_token_to_idx = {word: idx for idx, word in enumerate(self.output_vocab)}
+        self.query_word_to_idx = {word: torch.tensor([idx], device=config.device) for idx, word in enumerate(self.response_vocab)}
+        self.output_token_to_idx = {word: torch.tensor([idx], device=config.device) for idx, word in enumerate(self.output_vocab)}
 
         self.embeddings_in = nn.Embedding(len(self.response_vocab), EMBEDDING_DIM)
         self.embeddings_in.weight.requires_grad = True
@@ -94,11 +94,9 @@ class Policy(nn.Module):
             for content in response:
                 assert content
                 content = content.strip().split()
-                sentence_idxs = []
-                for word in content:
-                    sentence_idxs.append(self.query_word_to_idx[word])
 
-                embeds = self.embeddings_in(torch.tensor(sentence_idxs))
+                sentence_idxs = torch.cat([self.query_word_to_idx[word] for word in content])
+                embeds = self.embeddings_in(sentence_idxs)
                 word_embeddings.append(embeds)
         assert len(word_embeddings) == len(batch_response)
         return word_embeddings
