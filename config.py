@@ -14,7 +14,6 @@ value_loss_coef = 0.5  # _, help='value loss coefficient (default: 0.5)')
 max_grad_norm = 0.5  # _, help='max norm of gradients (default: 0.5)')
 seed = 1  # _, help='random seed (default: 1)')
 num_processes = 1  # _, help='how many training CPU processes to use (default: 16)')
-num_steps = 4
 ppo_epoch = 2  # _, help='number of ppo epochs (default: 4)')
 num_mini_batch = 1  # _, help='number of batches for ppo (default: 32)')
 clip_param = 0.2  # _, help='ppo clip parameter (default: 0.2)')
@@ -28,6 +27,9 @@ save_dir = './trained_models/'  # _, help='directory to save agent logs (default
 no_cuda = False  # _, help='disables CUDA training')
 recurrent_policy = False  # _, help='use a recurrent policy')
 use_linear_lr_decay = False  # _, help='use a linear schedule on the learning rate')
+
+
+num_steps = 30  # episode length
 device = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 env_name = "SQL-v1"
 user = getpass.getuser()

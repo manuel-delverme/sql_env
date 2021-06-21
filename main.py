@@ -63,6 +63,7 @@ def main():
             obs, reward, done, infos = envs.step(queries)
             if done:
                 success_rate.append(reward.detach().numpy())
+                agent.entropy_coef /= (1 + float(success_rate[-1]))
 
             if network_updates % config.log_query_interval == 0 and network_updates:
                 data.extend([[network_updates, rollout_step, q, float(r), str(o)] for q, r, o in zip(queries, reward, obs)])
@@ -77,7 +78,6 @@ def main():
             masks = torch.tensor(1 - done, dtype=torch.float32)
 
             rollouts.insert(obs, batch_queries, action_log_prob, value, reward, masks)
-
 
         if network_updates % config.log_query_interval == 0 and network_updates:
             config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation"], data=data)})

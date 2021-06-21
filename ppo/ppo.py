@@ -24,7 +24,6 @@ class PPO:
         action_loss_epoch = 0
         dist_entropy_epoch = 0
 
-        from torch.distributions import Dirichlet
         for e in range(self.ppo_epoch):
             data_generator = rollouts.feed_forward_generator(advantages, self.num_mini_batch)
 
@@ -34,7 +33,7 @@ class PPO:
 
                 # Reshape to do in a single forward pass for all steps
                 values, action_log_probs, parsed_actions, concentration = self.actor_critic.evaluate_actions(obs_batch, actions_batch)
-                #$entropy =  - torch.einsum('btx,btx->bt',torch.exp(action_log_probs),  action_log_probs).mean()
+                # $entropy =  - torch.einsum('btx,btx->bt',torch.exp(action_log_probs),  action_log_probs).mean()
                 entropy = - (torch.log(concentration + 1e-6) * concentration).sum(-1).mean()
                 action_log_probs = torch.einsum("btx,btx->bt", action_log_probs, parsed_actions)
                 old_action_log_probs_batch = torch.einsum("btx,btx->bt", old_action_log_probs_batch, parsed_actions)
