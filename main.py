@@ -93,6 +93,10 @@ def main():
         value_loss, action_loss, dist_entropy = agent.update(rollouts)
         rollouts.after_update()
 
+        # # save for every interval-th episode or for the last epoch
+        # if network_updates % config.save_interval == 0 or network_updates == num_updates - 1:
+        #     config.tb.add_object("model", actor_critic, global_step=network_updates)
+
         if network_updates % config.log_interval == 0 and len(episode_rewards) > 1:
             total_num_steps = (network_updates + 1) * config.num_processes * config.num_steps
 
