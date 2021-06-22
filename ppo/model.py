@@ -127,7 +127,7 @@ class Policy(nn.Module):
 
 
 class MLPBase(nn.Module):
-    def __init__(self, num_inputs, dictionary_size, query_length, eps, hidden_size=64):
+    def __init__(self, num_inputs, dictionary_size, query_length, eps, hidden_size=128):
         super().__init__()
         self._query_length = query_length
         self._hidden_size = hidden_size
@@ -171,7 +171,7 @@ class AutoregressiveActor(nn.Module):
         self.dictionary_size, self.sequence_length = dictionary_size, sequence_length
 
         self.hidden_to_output = nn.Sequential(
-            # nn.Linear(num_inputs, hidden_size),
+            nn.Linear(num_inputs, hidden_size),
             # nn.Linear(hidden_size, hidden_size),
             nn.Linear(hidden_size, dictionary_size * sequence_length),
         )
