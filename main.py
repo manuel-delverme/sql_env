@@ -111,7 +111,7 @@ def main():
                 if len(sr):
                     config.tb.add_scalar(f"train/success_rate{idx + 1}", np.mean(sr), global_step=network_updates)
 
-            if len(success_rate[-1]) == success_rate[-1].maxlen and np.mean(success_rate[-1]) >= 0.95:
+            if len(success_rate[-1]) == success_rate[-1].maxlen and np.mean(success_rate[-1]) >= 0.75:
                 successes += 1
                 if successes > 10:
                     print("Done :)")
