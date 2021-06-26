@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 import torch.optim as optim
 
 
@@ -19,8 +18,8 @@ class PPO:
         self.optimizer = optim.Adam(actor_critic.parameters(), lr=lr, eps=eps)
 
     def update(self, rollouts):
-        advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
-
+        advantages = rollouts.returns[:-1]  # - rollouts.value_preds[:-1]
+        # advantages = (advantages - advantages.min()) / (advantages.max() - advantages.min())
         value_loss_epoch = 0
         action_loss_epoch = 0
         dist_entropy_epoch = 0
@@ -33,24 +32,25 @@ class PPO:
                 old_action_log_probs_batch = torch.tensor(old_action_log_probs_batch, device=value_preds_batch.device)
 
                 # Reshape to do in a single forward pass for all steps
-                values, action_log_probs, parsed_actions = self.actor_critic.evaluate_actions(obs_batch, actions_batch)
-
+                values, action_log_probs, parsed_actions, concentration = self.actor_critic.evaluate_actions(obs_batch, actions_batch)
+                # $entropy =  - torch.einsum('btx,btx->bt',torch.exp(action_log_probs),  action_log_probs).mean()
+                entropy = - (torch.log(concentration + 1e-6) * concentration).sum(-1).mean()
                 action_log_probs = torch.einsum("btx,btx->bt", action_log_probs, parsed_actions)
                 old_action_log_probs_batch = torch.einsum("btx,btx->bt", old_action_log_probs_batch, parsed_actions)
                 ratio = torch.exp(action_log_probs - old_action_log_probs_batch)
-                surr1 = ratio * adv_targ
-                surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ
-                action_loss = -torch.min(surr1, surr2).mean()
+                action_loss = - (concentration * ratio * adv_targ).mean()
+                # surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ
+                # action_loss = -torch.min(surr1, surr2).mean()
 
                 value_loss = 0.5 * (return_batch - values).pow(2).mean()
-
                 self.optimizer.zero_grad()
-                (value_loss * self.value_loss_coef + action_loss).backward()
-                nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
+                (action_loss - self.entropy_coef * entropy).backward()
+                # nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
                 self.optimizer.step()
 
                 value_loss_epoch += value_loss.item()
                 action_loss_epoch += action_loss.item()
+                dist_entropy_epoch += entropy.item()
 
         num_updates = self.ppo_epoch * self.num_mini_batch
 

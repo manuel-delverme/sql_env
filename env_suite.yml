@@ -1,0 +1,9 @@
+program: main.py
+method: grid
+metric:
+  name: train/avg_rw
+parameters:
+  complexity:
+    values: [ 3, 4, 5, 6, 7 ]
+  seed:
+    values: [ 2342, 123, 9423, 12094,184, 2398, 83, 74, 32, 67 ]

@@ -46,17 +46,10 @@ class RolloutStorage(object):
         self.masks[0].copy_(self.masks[-1])
 
     def compute_returns(self, next_value, use_gae, gamma, gae_lambda):
-        if use_gae:
-            self.value_preds[-1] = next_value
-            gae = 0
-            for step in reversed(range(self.rewards.size(0))):
-                delta = self.rewards[step] + gamma * self.value_preds[step + 1] * self.masks[step + 1] - self.value_preds[step]
-                gae = delta + gamma * gae_lambda * self.masks[step + 1] * gae
-                self.returns[step] = gae + self.value_preds[step]
-        else:
-            self.returns[-1] = next_value
-            for step in reversed(range(self.rewards.size(0))):
-                self.returns[step] = self.returns[step + 1] * gamma * self.masks[step + 1] + self.rewards[step]
+        self.returns[-1] = next_value
+        assert len(self.rewards) == self.num_steps
+        for step in reversed(list(range(self.num_steps))):
+            self.returns[step] = self.returns[step + 1] * gamma * self.masks[step + 1] + self.rewards[step]
 
     def feed_forward_generator(self, advantages, num_mini_batch=None, mini_batch_size=None) -> Tuple[torch.tensor, torch.tensor, torch.tensor, torch.tensor,]:
         num_steps, num_processes = self.rewards.size()[0:2]

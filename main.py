@@ -1,141 +1,121 @@
-import logging
-import threading
+import os
 import time
-from multiprocessing import dummy as mp
+from collections import deque
 
-import experiment_buddy
+import numpy as np
 import torch
+import tqdm
 
 import config
-from impala import atari_wrappers
-from impala.core import prof
-from impala.models import MLPBase
-from impala.monobeast import create_buffers, act, get_batch, learn, checkpoint
-
-import gym
-
-
-def create_env(env_id):
-    env = gym.make(env_id)
-    return env
-
-
-def train():
-    experiment_buddy.register(config_params=config.__dict__)
-    writer = experiment_buddy.deploy(host="", wandb_kwargs={"mode": "disabled"})
-    env = create_env(config.env_id)
-    torch.manual_seed(config.seed)
-    # TODO fix this shit
-    model = MLPBase(env.observation_space.shape, env.action_space.n, config.use_lstm)
-    buffers = create_buffers(config, env.observation_space.shape, model.num_actions)
-    if config.DEBUG:
-        ctx = mp
-    else:
-        model.share_memory()
-        ctx = mp.get_context("fork")
-
-    # Add initial RNN state.
-    initial_agent_state_buffers = []
-    for _ in range(config.num_buffers):
-        state = model.initial_state(batch_size=1)
-        for t in state:
-            t.share_memory_()
-        initial_agent_state_buffers.append(state)
-
-    actor_processes = []
-    free_queue = ctx.Queue()
-    full_queue = ctx.Queue()
-
-    for actor_idx in range(config.num_actors):
-        actor = ctx.Process(
-            target=act, args=(actor_idx, free_queue, full_queue, model, buffers, initial_agent_state_buffers),
-        )
-        actor.start()
-        actor_processes.append(actor)
-
-    learner_model = MLPBase(env.observation_space.shape, env.action_space.n, config.use_lstm).to(device=config.device)
-    optimizer = torch.optim.RMSprop(
-        learner_model.parameters(),
-        lr=config.learning_rate,
-        momentum=config.momentum,
-        eps=config.epsilon,
-        alpha=config.alpha,
-    )
-
-    def lr_lambda(epoch):
-        return 1 - min(epoch * config.unroll_length * config.batch_size, config.total_steps) / config.total_steps
-
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
-
-    step, stats = 0, {}
-
-    def batch_and_learn(learner_idx, lock=threading.Lock()):
-        """Thread target for the learning process."""
-        nonlocal step, stats
-        timings = prof.Timings()
-        while step < config.total_steps:
-            timings.reset()
-            batch, agent_state = get_batch(
-                config,
-                free_queue,
-                full_queue,
-                buffers,
-                initial_agent_state_buffers,
-                timings,
-            )
-            stats = learn(config, model, learner_model, batch, agent_state, optimizer, scheduler)
-            timings.time("learn")
-            with lock:
-                to_log = dict(step=step)
-                to_log.update(stats)
-                for k, v in to_log.items():
-                    writer.add_scalar(k, v, global_step=step)
-                step += config.unroll_length * config.batch_size
-
-        if learner_idx == 0:
-            logging.info("Batch and learn: %s", timings.summary())
-
-    for m in range(config.num_buffers):
-        free_queue.put(m)
-
-    threads = []
-    for actor_idx in range(config.num_learner_threads):
-        thread = threading.Thread(target=batch_and_learn, name="batch-and-learn-%d" % actor_idx, args=(actor_idx,))
-        thread.start()
-        threads.append(thread)
-
-    try:
-        while step < config.total_steps:
-            start_step = step
-            start_time = time.time()
-            time.sleep(5)
-
-            if step % config.save_every == 0:
-                checkpoint(model, optimizer, scheduler, writer, step)
-
-            sps = (step - start_step) / (time.time() - start_time)
-            writer.add_scalar("sps", sps, global_step=step)
-            mean_return = f"Return per episode: {stats.get('mean_episode_return', 0.):.1f}. "
-            total_loss = stats.get("total_loss", float("inf"))
-            logging.info("Steps %i @ %.1f SPS. Loss %f. %s\n", step, sps, total_loss, mean_return)
-
-    except KeyboardInterrupt:
-        return  # Try joining actors then quit.
-    else:
-        for thread in threads:
-            thread.join()
-        logging.info("Learning finished after %d steps.", step)
-    finally:
-        for _ in range(config.num_actors):
-            free_queue.put(None)
-        for actor in actor_processes:
-            actor.join(timeout=1)
-
-    checkpoint(model, optimizer, scheduler, writer, step)
+import constants
+import environment  # noqa
+import ppo.model
+import wandb
+from ppo import utils
+from ppo.envs import make_vec_envs
+from ppo.storage import RolloutStorage
 
 
 def main():
-    train()
+    torch.manual_seed(config.seed)
+    torch.cuda.manual_seed_all(config.seed)
+
+    log_dir = os.path.expanduser(config.log_dir)
+    eval_log_dir = log_dir + "_eval"
+    utils.cleanup_log_dir(log_dir)
+    utils.cleanup_log_dir(eval_log_dir)
+
+    torch.set_num_threads(1)
+    envs = make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir, config.device, False)
+
+    actor_critic = ppo.model.Policy(envs.observation_space.shape, envs.action_space.vocab,
+                                    envs.action_space.sequence_length, eps=config.eps).to(config.device)
+
+    agent = ppo.PPO(
+        actor_critic, config.clip_param, config.ppo_epoch, config.num_mini_batch, config.value_loss_coef,
+        config.entropy_coef, lr=config.lr, eps=config.eps,
+        max_grad_norm=config.max_grad_norm)
+
+    rollouts = RolloutStorage(config.num_steps, config.num_processes, envs.observation_space.shape, envs.action_space)
+
+    obs = envs.reset()
+    rollouts.obs[0] = obs.copy()
+    rollouts.to(config.device)
+
+    episode_rewards = deque(maxlen=10)
+    success_rate = [deque(maxlen=100) for _ in range(constants.max_columns)]
+    episode_distances = deque()
+
+    start = time.time()
+    num_updates = int(config.num_env_steps) // config.num_steps // config.num_processes
+    successes = 0
+
+    data = []
+
+    for network_updates in tqdm.trange(num_updates):
+        episode_distances.clear()
+        running_logprobs = torch.zeros(envs.action_space.sequence_length, len(ppo.model.Policy.output_vocab), device=config.device)
+
+        for rollout_step in range(config.num_steps):
+            with torch.no_grad():
+                value, batch_queries, action_log_prob = actor_critic.act(rollouts.obs[rollout_step])
+            running_logprobs += action_log_prob[0]
+
+            queries = ["".join(query) for query in batch_queries]
+            obs, reward, done, infos = envs.step(queries)
+
+            if network_updates % config.log_query_interval == 0 and network_updates:
+                data.extend([[network_updates, rollout_step, q, float(r), str(o), i["template"]] for q, r, o, i in zip(queries, reward, obs, infos)])
+
+            for info in infos:
+                if 'episode' in info.keys():
+                    # It's done.
+                    r = info['episode']['r']  # .detach().numpy()
+                    episode_rewards.append(r)
+                    solved = info["solved"]
+                    success_rate[info['columns']].append(solved)
+                    # agent.entropy_coef /= (1 + float(success_rate[-1]))
+
+                episode_distances.append(info['similarity'])
+
+            # If done then clean the history of observations.
+            masks = torch.tensor(1 - done, dtype=torch.float32)
+
+            rollouts.insert(obs, batch_queries, action_log_prob, value, reward, masks)
+
+        if network_updates % config.log_query_interval == 0 and network_updates:
+            config.tb.run.log({"train_queries": wandb.Table(columns=["network_update", "rollout_step", "query", "reward", "observation", "template"], data=data)})
+        with torch.no_grad():
+            next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
+
+        next_value = torch.zeros_like(next_value)
+        rollouts.compute_returns(next_value, config.use_gae, config.gamma, config.gae_lambda)
+        value_loss, action_loss, dist_entropy = agent.update(rollouts)
+        rollouts.after_update()
+
+        if network_updates % config.log_interval == 0 and len(episode_rewards) > 1:
+            total_num_steps = (network_updates + 1) * config.num_processes * config.num_steps
+
+            end = time.time()
+            action_logprob = (running_logprobs / config.num_steps).mean(0)
+            config.tb.add_histogram("train/log_prob", action_logprob, global_step=network_updates)
+            config.tb.add_histogram('train/log_prob_per_action', np.histogram(np.arange(action_logprob.shape[0]), weights=action_logprob), global_step=network_updates)
+            config.tb.add_scalar("train/fps", int(total_num_steps / (end - start)), global_step=network_updates)
+            config.tb.add_scalar("train/avg_rw", np.mean(episode_rewards), global_step=network_updates)
+            config.tb.add_scalar("train/max_return", np.max(episode_rewards), global_step=network_updates)
+            config.tb.add_scalar("train/entropy", dist_entropy, global_step=network_updates)
+            config.tb.add_scalar("train/mean_distance", np.mean(episode_distances), global_step=network_updates)
+            config.tb.add_scalar("train/value_loss", value_loss, global_step=network_updates)
+            config.tb.add_scalar("train/action_loss", action_loss, global_step=network_updates)
+            for idx, sr in enumerate(success_rate):
+                if len(sr):
+                    config.tb.add_scalar(f"train/success_rate{idx + 1}", np.mean(sr), global_step=network_updates)
+
+            if len(success_rate[-1]) == success_rate[-1].maxlen and np.mean(success_rate[-1]) >= 0.75:
+                successes += 1
+                if successes > 10:
+                    print("Done :)")
+                    return
 
 
 if __name__ == "__main__":
