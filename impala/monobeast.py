@@ -18,18 +18,16 @@ import threading
 import traceback
 import typing
 
-from main import train
-
 os.environ["OMP_NUM_THREADS"] = "1"  # Necessary for multithreading.
 
 import torch
+import gym
 from torch import nn
 from torch.nn import functional as F
 
-import atari_wrappers
-from core import environment
-from core import prof
-from core import vtrace
+from .core import environment
+from .core import prof
+from .core import vtrace
 
 import config
 
@@ -45,6 +43,10 @@ Buffers = typing.Dict[str, typing.List[torch.Tensor]]
 
 def compute_baseline_loss(advantages):
     return 0.5 * torch.sum(advantages ** 2)
+
+
+def create_env(config):
+    return gym.make(config.env_name)
 
 
 def compute_entropy_loss(logits):
@@ -76,7 +78,7 @@ def act(actor_index: int, free_queue: mp.Queue, full_queue: mp.Queue, model: tor
         env = environment.Environment(gym_env)
         env_output = env.initial()
         agent_state = model.initial_state(batch_size=1)
-        agent_output, unused_state = model(env_output, agent_state)
+        agent_output  = model.act([env_output['frame']])
         while True:
             index = free_queue.get()
             if index is None:
@@ -91,11 +93,11 @@ def act(actor_index: int, free_queue: mp.Queue, full_queue: mp.Queue, model: tor
                 initial_agent_state_buffers[index][i][...] = tensor
 
             # Do new rollout.
-            for t in range(config.unroll_length):
+            for t in range(config.num_steps):
                 timings.reset()
 
                 with torch.no_grad():
-                    agent_output, agent_state = model(env_output, agent_state)
+                    agent_output  = model([env_output['frame']])
 
                 timings.time("model")
 
@@ -193,28 +195,27 @@ def learn(flags, actor_model, model, batch, initial_agent_state, optimizer, sche
         return stats
 
 
-def create_buffers(flags, obs_shape, num_actions) -> Buffers:
-    T = flags.unroll_length
+def create_buffers(unroll_length, obs_shape, num_actions, num_buffers) -> Buffers:
     specs = dict(
-        frame=dict(size=(T + 1, *obs_shape), dtype=torch.uint8),
-        reward=dict(size=(T + 1,), dtype=torch.float32),
-        done=dict(size=(T + 1,), dtype=torch.bool),
-        episode_return=dict(size=(T + 1,), dtype=torch.float32),
-        episode_step=dict(size=(T + 1,), dtype=torch.int32),
-        policy_logits=dict(size=(T + 1, num_actions), dtype=torch.float32),
-        baseline=dict(size=(T + 1,), dtype=torch.float32),
-        last_action=dict(size=(T + 1,), dtype=torch.int64),
-        action=dict(size=(T + 1,), dtype=torch.int64),
+        frame=dict(size=(unroll_length + 1, *obs_shape), dtype=torch.uint8),
+        reward=dict(size=(unroll_length + 1,), dtype=torch.float32),
+        done=dict(size=(unroll_length + 1,), dtype=torch.bool),
+        episode_return=dict(size=(unroll_length + 1,), dtype=torch.float32),
+        episode_step=dict(size=(unroll_length + 1,), dtype=torch.int32),
+        policy_logits=dict(size=(unroll_length + 1, num_actions), dtype=torch.float32),
+        baseline=dict(size=(unroll_length + 1,), dtype=torch.float32),
+        last_action=dict(size=(unroll_length + 1,), dtype=torch.int64),
+        action=dict(size=(unroll_length + 1,), dtype=torch.int64),
     )
     buffers: Buffers = {key: [] for key in specs}
-    for _ in range(flags.num_buffers):
+    for _ in range(num_buffers):
         for key in buffers:
             buffers[key].append(torch.empty(**specs[key]).share_memory_())
     return buffers
 
 
-def checkpoint(model, optimizer, scheduler, writer, step):
-    if config.disable_checkpoint:
+def checkpoint(model, optimizer, scheduler, writer, step, disable_checkpoint=True):
+    if disable_checkpoint:
         return
     writer.add_object({
         "model_state_dict": model.state_dict(),
@@ -223,5 +224,3 @@ def checkpoint(model, optimizer, scheduler, writer, step):
         step
     )
     logging.info("Saved checkpoint to %s at %n", writer.objects_path, step)
-
-
