@@ -38,7 +38,7 @@ class PPO:
                 action_log_probs = torch.einsum("btx,btx->bt", action_log_probs, parsed_actions)
                 old_action_log_probs_batch = torch.einsum("btx,btx->bt", old_action_log_probs_batch, parsed_actions)
                 ratio = torch.exp(action_log_probs - old_action_log_probs_batch)
-                action_loss = - (concentration * ratio * adv_targ).mean()
+                action_loss = - (ratio * adv_targ).mean()
                 # surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ
                 # action_loss = -torch.min(surr1, surr2).mean()
 
