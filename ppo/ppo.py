@@ -33,12 +33,13 @@ class PPO:
 
                 # Reshape to do in a single forward pass for all steps
                 values, action_log_probs, parsed_actions, concentration = self.actor_critic.evaluate_actions(obs_batch, actions_batch)
-                # $entropy =  - torch.einsum('btx,btx->bt',torch.exp(action_log_probs),  action_log_probs).mean()
-                entropy = - (torch.log(concentration + 1e-6) * concentration).sum(-1).mean()
+                entropy =  - torch.einsum('btx,btx->bt',torch.exp(action_log_probs),  action_log_probs).mean()
+                # entropy = - (torch.log(concentration + 1e-6) * concentration).sum(-1).mean()
                 action_log_probs = torch.einsum("btx,btx->bt", action_log_probs, parsed_actions)
-                old_action_log_probs_batch = torch.einsum("btx,btx->bt", old_action_log_probs_batch, parsed_actions)
-                ratio = torch.exp(action_log_probs - old_action_log_probs_batch)
-                action_loss = - (concentration * ratio * adv_targ).mean()
+                # old_action_log_probs_batch = torch.einsum("btx,btx->bt", old_action_log_probs_batch, parsed_actions)
+                #ratio = torch.exp(action_log_probs - old_action_log_probs_batch)
+                ratio = action_log_probs
+                action_loss = - (ratio.sum(-1, keepdim=True) * adv_targ).mean()
                 # surr2 = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param) * adv_targ
                 # action_loss = -torch.min(surr1, surr2).mean()
 
