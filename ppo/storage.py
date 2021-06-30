@@ -51,8 +51,7 @@ class RolloutStorage(object):
         for step in reversed(list(range(self.num_steps))):
             self.returns[step] = self.returns[step + 1] * gamma * self.masks[step + 1] + self.rewards[step]
 
-    def feed_forward_generator(self, advantages, num_mini_batch=None, mini_batch_size=None) -> Tuple[
-        torch.tensor, torch.tensor, torch.tensor, torch.tensor,]:
+    def feed_forward_generator(self, advantages, num_mini_batch=None, mini_batch_size=None) -> Tuple[torch.tensor, torch.tensor, torch.tensor, torch.tensor,]:
         num_steps, num_processes = self.rewards.size()[0:2]
         batch_size = num_processes * num_steps
 

@@ -6,6 +6,7 @@ import gym.envs
 import numpy as np
 import torch.distributions
 
+import config
 import constants
 
 torch.manual_seed(1)
@@ -38,23 +39,25 @@ class SQLEnv(gym.Env):
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
         self.cursor.execute("CREATE TABLE p(id INTEGER PRIMARY KEY AUTOINCREMENT, userid INT, a TEXT)")
-
         self.cursor.execute("INSERT INTO p(id, userid, a) VALUES(NULL, 1, 'accountnr:123456!')")
 
         data = []
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
         output_vocab = {
-            "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
-            'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
-            *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
-            *"Incorrect number of bindings supplied".split(),
-            *"no such table".split(),
-            "", "UNK"
+            # "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
+            # 'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
+            # *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
+            "columns",
+            # *"Incorrect number of bindings supplied".split(),
+            # *"no such table".split(),
+            "success", "UNK"
         }
 
         self.observation_space = TextSpace(output_vocab)
 
-        self.target_query_length = 9
+        self.target_query_length = config.complexity + self.max_columns - 1
+        assert self.target_query_length > 1, "lvl1 is bugged"
+
         self.action_space = TextSpace(output_vocab, self.target_query_length)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
@@ -63,38 +66,19 @@ class SQLEnv(gym.Env):
         self.query_template = None
         self.reset()
 
-    def step(self, input_query: str):
-        assert isinstance(input_query, str)
+    def step(self, user_query: str):
+        assert isinstance(user_query, str)
         # We can use the same database as long as we change the hidden query
 
-        cols = self.query_template.split(" FROM ")[0].count(',')
-        if "firstname='{input}'" in self.query_template:
-            escape = "'"
-        elif "nationality=\"{input}\"" in self.query_template:
-            escape = '"'
-        else:
-            escape = ''
-        solution = [" 1 ", escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
-
-        # completed_input_query = "".join(solution[:-self.target_query_length]) + input_query
-        completed_input_query = input_query
+        solution = self.get_solution(user_query)
+        solution_query = "".join(solution)
+        # completed_input_query = input_query + precompleted_query
 
         http_code = http.client.OK
-        content = ""
-        found_flag = False
-        query = self.query_template.format(input=completed_input_query)
 
-        try:
-            self.cursor.execute(query)
-            for some in self.cursor.fetchall():
-                for f in some:
-                    # content += str(f) + ";"  # "{'-' if f is None else f}\n"
-                    f = str(f)
-                    if 'account' in f and '!' in f:
-                        found_flag = True
-        except Exception as ex:
-            content += str(ex)
-            http_code = http.client.INTERNAL_SERVER_ERROR
+        content, found_flag = self.query_db(user_query)
+        _, found_flag_ = self.query_db(solution_query)
+        assert found_flag_
 
         terminal = False
 
@@ -106,42 +90,90 @@ class SQLEnv(gym.Env):
             reward = 1.
             terminal = True
 
-        distance = 0
-        for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
-            distance += float(i.strip() == s.strip())
-            reward += 0.1 * distance
+        similarity = self.get_similarity(user_query, solution)
+        # reward += 0.01 * similarity
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
-            reward = -.1
+            content = "UNK"
 
-        if "no such column" in content:
+        elif "no such column" in content:
             content = "no such column"
+            content = "UNK"
 
-        if "no such table" in content:
+        elif "no such table" in content:
             content = "no such table"
+            content = "UNK"
 
-        if "unrecognized token" in content:
+        elif "unrecognized token" in content:
             content = "unrecognized token"
+            content = "UNK"
 
-        if "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
-            content = "SELECTs to the left and right of UNION do not have the same number of result columns"
+        elif "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
+            content = "columns"
 
-        if "Incorrect number of bindings supplied" in content:
+        elif "incomplete input" in content:
+            content = "UNK"
+
+        elif "Incorrect number of bindings supplied" in content:
             content = "Incorrect number of bindings supplied"
+            content = "UNK"
+
+        if not content:
+            content = "success"
 
         out_tokens = content.split(" ")
 
-        if content and set(out_tokens).difference(self.action_space.vocab):
+        if set(out_tokens).difference(self.action_space.vocab):
             if not terminal:
-                print("Query: ", input_query)
+                print("Query: ", user_query)
                 print("returns: ", content)
             content = "UNK"
 
-        return content, reward, terminal, {'distance': distance}
+        return content, reward, terminal, {
+            'similarity': similarity,
+            'columns': self.query_template.split(" FROM ")[0].count(','),
+            'template': self.query_template,
+            'solved': found_flag,
+        }
+
+    def query_db(self, user_query):
+        query = self.query_template.format(input=user_query)
+        content = ""
+        found_flag = False
+        try:
+            self.cursor.execute(query)
+            for some in self.cursor.fetchall():
+                for f in some:
+                    # content += str(f) + ";"  # "{'-' if f is None else f}\n"
+                    f = str(f)
+                    if 'account' in f and '!' in f:
+                        found_flag = True
+        except Exception as ex:
+            content += str(ex)
+            http_code = http.client.INTERNAL_SERVER_ERROR
+        return content, found_flag
+
+    def get_similarity(self, input_query, solution):
+        similarity = 0
+        for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
+            similarity += float(i.strip() == s.strip()) / self.target_query_length
+        return similarity / self.target_query_length
+
+    def get_solution(self, input_query):
+        cols = self.query_template.split(" FROM ")[0].count(',')
+        if "firstname='{input}'" in self.query_template:
+            escape = "'"
+        elif "nationality=\"{input}\"" in self.query_template:
+            escape = '"'
+        else:
+            escape = '1'
+        if escape in input_query:
+            input_query.format(escape=escape)
+        solution = [escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
+        return solution
 
     def reset(self):
-        np.random.seed(0)
         columns = np.random.randint(1, self.max_columns + 1)
         selected_columns = ", ".join(constants.columns[:columns])
         hidden_parameter = np.random.choice([
@@ -150,6 +182,5 @@ class SQLEnv(gym.Env):
             "age={input}",
         ])
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
-        # 1' UNION SELECT a, NULL, NULL FROM p --
-        state, _, _, _ = self.step("1")
+        state, _, _, _ = self.step("--")
         return state
