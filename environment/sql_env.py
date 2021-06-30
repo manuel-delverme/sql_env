@@ -44,11 +44,12 @@ class SQLEnv(gym.Env):
         data = []
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
         output_vocab = {
-            "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
-            'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
-            "columns",  # *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
-            *"Incorrect number of bindings supplied".split(),
-            *"no such table".split(),
+            # "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
+            # 'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
+            # *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
+            "columns",
+            # *"Incorrect number of bindings supplied".split(),
+            # *"no such table".split(),
             "success", "UNK"
         }
 
@@ -94,24 +95,29 @@ class SQLEnv(gym.Env):
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
+            content = "UNK"
 
         elif "no such column" in content:
             content = "no such column"
+            content = "UNK"
 
         elif "no such table" in content:
             content = "no such table"
+            content = "UNK"
 
         elif "unrecognized token" in content:
             content = "unrecognized token"
+            content = "UNK"
 
         elif "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
             content = "columns"
 
         elif "incomplete input" in content:
-            content = "incomplete input"
+            content = "UNK"
 
         elif "Incorrect number of bindings supplied" in content:
             content = "Incorrect number of bindings supplied"
+            content = "UNK"
 
         if not content:
             content = "success"
