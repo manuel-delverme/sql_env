@@ -18,7 +18,7 @@ class SQLEnvStructured(gym.Env):
     def render(self, mode='human'):
         pass
 
-    def __init__(self, max_columns=3):
+    def __init__(self):
         """
         Description:
             A webserver exposing a query with a potential SQL injection vulnerability. Behind the vulnerability lies a flag.
@@ -39,10 +39,11 @@ class SQLEnvStructured(gym.Env):
         Starting State:
             Webserver initialized with a random query. No action tested.
         Episode Termination:
-            Capture the flag.
+            Capture the flag (accountnr).
         """
-        self.max_columns = max_columns
-        self.structured_actions = generate_actions(max_columns=constants.max_columns)
+        self.max_columns = constants.max_columns
+        self.structured_actions = generate_actions()
+        self.reset_counter = 0
         # We can use the same database as long as we change the hidden query
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
@@ -51,17 +52,12 @@ class SQLEnvStructured(gym.Env):
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
         self.cursor.execute("CREATE TABLE private(id INTEGER PRIMARY KEY AUTOINCREMENT, userid INT, account TEXT)")
 
-        self.cursor.execute("INSERT INTO private(id, userid, account) VALUES(NULL, 1, 'accountnr:123456')")
+        self.cursor.execute("INSERT INTO private(id, userid, account) VALUES(NULL, 1, 'accountnr:123456!')")
 
         data = []
-        # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
-        output_vocab = {"UNION", "SELECT", "*", "FROM", "users", "1", "ERROR", "", "private", "account", "None", "and"}
-
         for idx, row in enumerate(xml.etree.ElementTree.fromstring(constants.USERS_XML).findall("user")):
             row = row.findtext("username"), row.findtext("firstname"), row.findtext("surname"), row.findtext("age"), row.findtext("nationality"), row.findtext("created_at")
             data.append(row)
-            output_vocab.update(row)
-            output_vocab.update(str(idx + 1))
 
         # Not truly the action space, but mainly to tell the agent what to expect?
         self.action_space = spaces.Discrete(len(self.structured_actions))
@@ -77,6 +73,7 @@ class SQLEnvStructured(gym.Env):
 
     def step(self, action):
         assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
+        self.num_steps += 1
         inquery = self.structured_actions[action]
         assert isinstance(inquery, str)
         code = http.client.OK
@@ -96,9 +93,9 @@ class SQLEnvStructured(gym.Env):
 
         if code == http.client.INTERNAL_SERVER_ERROR:
             response = 0
-            reward = -.1
+            reward = -.01
         else:
-            reward = -.1
+            reward = -.01
             if (content == ""):
                 response = 2
             else:
@@ -110,9 +107,11 @@ class SQLEnvStructured(gym.Env):
 
         self.state[action] = response
         # return content, reward, terminal, {}
-        return self.state, reward, terminal, {'msg': "Server response{}".format(response)}
+        #return self.state, reward, terminal, {'msg': "Server response{}".format(response)}
+        return self.state, reward, terminal, {"reward": reward, 'msg': "Server response:{}".format(response), "num_steps": self.num_steps, "reset_counter": self.reset_counter}
 
     def reset(self):
+        self.num_steps = 0
         columns = constants.columns
         escape_characters = ["'", '"', ""]
 
@@ -131,4 +130,5 @@ class SQLEnvStructured(gym.Env):
 
         # state, _, _, _ = self.step("1")
         self.state = np.ones(len(self.structured_actions))
+        self.reset_counter += 1
         return self.state
