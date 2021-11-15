@@ -1,5 +1,4 @@
-from collections import namedtuple
-from typing import List, Dict, Any
+from typing import List
 
 import gym.spaces
 import numpy as np
@@ -9,11 +8,7 @@ import yaml
 from stable_baselines3.common.buffers import ReplayBuffer
 
 import config
-from lstmDQN.generic import to_np, to_pt
 from lstmDQN.model import LSTM_DQN
-
-# a snapshot of state to be stored in replay memory
-Transition = namedtuple('Transition', ('obs', 'reward', 'mask', 'done', 'next_obs'))
 
 
 class CustomAgent:
@@ -24,10 +19,6 @@ class CustomAgent:
 
         with open(config_file_name) as reader:
             self.config = yaml.safe_load(reader)
-
-
-
-
 
         self.batch_size = self.config['training']['batch_size']
         self.max_nb_steps_per_episode = self.config['training']['max_nb_steps_per_episode']
@@ -42,10 +33,6 @@ class CustomAgent:
         self.experiment_tag = self.config['checkpoint']['experiment_tag']
         self.model_checkpoint_path = self.config['checkpoint']['model_checkpoint_path']
         self.save_frequency = self.config['checkpoint']['save_frequency']
-
-
-
-
 
         self.model.to(config.device)
 
@@ -70,7 +57,6 @@ class CustomAgent:
 
         self.discount_gamma = self.config['general']['discount_gamma']
         self.current_episode = 0
-        self.current_step = 0
         self._epsiode_has_started = False
         self.best_avg_score_so_far = 0.0
 
@@ -82,72 +68,11 @@ class CustomAgent:
         self.mode = "eval"
         self.model.eval()
 
-    def _start_episode(self, obs: List[str]) -> None:
-        self.current_step = 0
-
-    def get_chosen_strings(self, chosen_indices):
-        """
-        Turns list of word indices into actual command strings.
-
-        Arguments:
-            chosen_indices: Word indices chosen by model.
-        """
-        chosen_indices_np = [to_np(item)[:, 0] for item in chosen_indices]
-        res_str = []
-        batch_size = chosen_indices_np[0].shape[0]
-        for i in range(batch_size):
-            verb, adj, noun, adj_2, noun_2 = (chosen_indices_np[0][i], chosen_indices_np[1][i], chosen_indices_np[2][i], chosen_indices_np[3][i], chosen_indices_np[4][i])
-            res_str.append(self.word_ids_to_commands(verb, adj, noun, adj_2, noun_2))
-        return res_str
-
-    def choose_random_command(self, word_ranks, word_masks_np):
-        """
-        Generate a command randomly, for epsilon greedy.
-
-        Arguments:
-            word_ranks: Q values for each word by model.get_Q.
-            word_masks_np: Vocabulary masks for words depending on their type (verb, adj, noun).
-        """
-        batch_size = word_ranks[0].size(0)
-        word_ranks_np = [to_np(item) for item in word_ranks]  # list of batch x n_vocab
-        word_ranks_np = [r * m for r, m in zip(word_ranks_np, word_masks_np)]  # list of batch x n_vocab
-        word_indices = []
-        for i in range(len(word_ranks_np)):
-            indices = []
-            for j in range(batch_size):
-                msk = word_masks_np[i][j]  # vocab
-                indices.append(np.random.choice(len(msk), p=msk / np.sum(msk, -1)))
-            word_indices.append(np.array(indices))
-        # word_indices: list of batch
-        word_qvalues = [[] for _ in word_masks_np]
-        for i in range(batch_size):
-            for j in range(len(word_qvalues)):
-                word_qvalues[j].append(word_ranks[j][i][word_indices[j][i]])
-        word_qvalues = [torch.stack(item) for item in word_qvalues]
-        word_indices = [to_pt(item, self.use_cuda) for item in word_indices]
-        word_indices = [item.unsqueeze(-1) for item in word_indices]  # list of batch x 1
-        return word_qvalues, word_indices
-
     def get_Q(self, token_idx):
         state_representation = self.model.representation_generator(token_idx)
         return self.model.get_Q(state_representation)  # each element in list has batch x n_vocab size
 
-    def act_eval(self, obs: List[str]) -> List[str]:
-        input_description = obs
-        word_ranks = self.get_Q(input_description)  # list of batch x vocab
-        _, word_indices_maxq = self.choose_maxQ_command(word_ranks)
-
-        chosen_indices = word_indices_maxq
-        chosen_indices = [item.detach() for item in chosen_indices]
-        chosen_strings = self.get_chosen_strings(chosen_indices)
-        self.current_step += 1
-
-        return chosen_strings
-
     def act(self, obs: List[str]) -> List[str]:
-        if self.mode == "eval":
-            return self.act_eval(obs)
-
         sequence_Q = self.get_Q(obs)  # list of batch x vocab
 
         # random number for epsilon greedy
@@ -157,38 +82,7 @@ class CustomAgent:
         actions[rand_num < self.epsilon, :] = rand_idx[rand_num < self.epsilon, :]
         return actions
 
-    def compute_reward(self):
-        """
-        Compute rewards by agent. Note this is different from what the training/evaluation
-        scripts do. Agent keeps track of scores and other game information for training purpose.
-
-        """
-        # mask = 1 if game is not finished or just finished at current step
-        if len(self.dones) == 1:
-            # it's not possible to finish a game at 0th step
-            mask = [1.0 for _ in self.dones[-1]]
-        else:
-            assert len(self.dones) > 1
-            mask = [1.0 if not self.dones[-2][i] else 0.0 for i in range(len(self.dones[-1]))]
-        mask = np.array(mask, dtype='float32')
-        mask_pt = to_pt(mask, self.use_cuda, type='float')
-        # rewards returned by game engine are always accumulated value the
-        # agent have recieved. so the reward it gets in the current game step
-        # is the new value minus values at previous step.
-        rewards = np.array(self.rewards[-1], dtype='float32')  # batch
-        if len(self.rewards) > 1:
-            prev_rewards = np.array(self.rewards[-2], dtype='float32')
-            rewards = rewards - prev_rewards
-        rewards_pt = to_pt(rewards, self.use_cuda, type='float')
-
-        return rewards, rewards_pt, mask, mask_pt
-
     def update(self):
-        """
-        Update neural model in agent. In this example we follow algorithm
-        of updating model in dqn with replay memory.
-
-        """
         if not self.replay_memory.full and self.replay_memory.pos < self.replay_batch_size:
             return None
         batch = self.replay_memory.sample(self.replay_batch_size)

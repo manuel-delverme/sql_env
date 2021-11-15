@@ -29,9 +29,3 @@ training:
     step_rule: 'adam'  # adam
     learning_rate: 0.001
     clip_grad_norm: 5
-
-model:
-  embedding_size: 64
-  encoder_rnn_hidden_size: [192]
-  action_scorer_hidden_dim: 128
-  dropout_between_rnn_layers: 0.

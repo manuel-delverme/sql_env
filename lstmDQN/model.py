@@ -1,7 +1,8 @@
 import logging
 
-import numpy as np
 import torch
+
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +30,12 @@ class LSTM_DQN(torch.nn.Module):
         super(LSTM_DQN, self).__init__()
         self.device = device
         self.model_config = model_config
-        # self.enable_cuda = enable_cuda
         self.agent_vocab_size = len(agent_vocab)
         self.env_vocab_size = len(env_vocab)
-        # self.id2word = word_vocab
         self.output_length = output_length
-        self.read_config()
+        self.embedding_size = config.embedding_size
+        self.encoder_rnn_hidden_size, = config.encoder_rnn_hidden_size
+        self.action_scorer_hidden_dim = config.action_scorer_hidden_dim
 
         self.word_embedding = torch.nn.Embedding(self.env_vocab_size, self.embedding_size, device=self.device)
         self.encoder = torch.nn.GRU(self.embedding_size, self.encoder_rnn_hidden_size, batch_first=True)
@@ -54,23 +55,6 @@ class LSTM_DQN(torch.nn.Module):
         self.agent_reverse_vocab = {word: torch.tensor([idx], device=self.device) for idx, word in enumerate(self.agent_vocab)}
         self.env_reverse_vocab = {word: torch.tensor([idx], device=self.device) for idx, word in enumerate(self.env_vocab)}
         # self.print_parameters()
-
-    def print_parameters(self):
-        amount = 0
-        for p in self.parameters():
-            amount += np.prod(p.size())
-        print("total number of parameters: %s" % (amount))
-        parameters = filter(lambda p: p.requires_grad, self.parameters())
-        amount = 0
-        for p in parameters:
-            amount += np.prod(p.size())
-        print("number of trainable parameters: %s" % (amount))
-
-    def read_config(self):
-        # model config
-        self.embedding_size = self.model_config['embedding_size']
-        self.encoder_rnn_hidden_size, = self.model_config['encoder_rnn_hidden_size']
-        self.action_scorer_hidden_dim = self.model_config['action_scorer_hidden_dim']
 
     def init_weights(self):
         torch.nn.init.xavier_uniform_(self.Q_features[0].weight.data)

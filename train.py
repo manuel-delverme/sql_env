@@ -3,9 +3,11 @@ import torch
 import config
 import environment  # noqa
 import environment.sql_env
+import experiment_buddy
 import ppo.envs
 import ppo.model
 from lstmDQN.custom_agent import CustomAgent
+
 
 def train():
     config_file_name = "lstmDQN/config.yaml"
@@ -23,6 +25,7 @@ def train():
         done = False
         episode_length = 0
         episode_reward = 0
+        agent.current_step = 0
 
         while not done:
             actions = agent.act(obs_token)
@@ -48,9 +51,7 @@ def train():
 
             next_obs_token = agent.model.env_encode(next_obs)
             del next_obs
-
-            if agent.current_step > 0:
-                agent.replay_memory.add(obs_token, next_obs_token, actions, rewards, dones, infos)
+            agent.replay_memory.add(obs_token, next_obs_token, actions, rewards, dones, infos)
 
             obs_token = next_obs_token
 
@@ -75,4 +76,9 @@ def idx_to_str(agent, actions):
 
 
 if __name__ == '__main__':
+    experiment_buddy.register(vars(config))
+    PROC_NUM = 1
+    HOST = "mila" if config.user == "esac" else ""
+    YAML_FILE = "env_suite.yml"
+    tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM, wandb_kwargs={"mode": "disabled" if config.DEBUG else "online", "entity": "rl-sql"})
     train()
