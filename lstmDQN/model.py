@@ -24,7 +24,6 @@ def _text_to_token_idx(batch_response, table):
 
 class LSTM_DQN(torch.nn.Module):
     batch_size = 1
-    seq_input_len = 1
 
     def __init__(self, agent_vocab, env_vocab, device, output_length: int):
         super(LSTM_DQN, self).__init__()
@@ -37,12 +36,12 @@ class LSTM_DQN(torch.nn.Module):
         self.encoder_rnn_hidden_size = config.encoder_rnn_hidden_size
         self.action_scorer_hidden_dim = config.action_scorer_hidden_dim
 
-        self.word_embedding = torch.nn.Embedding(self.env_vocab_size, self.embedding_size, device=self.device)
-        self.action_embedding = torch.nn.Embedding(self.agent_vocab_size, self.action_embedding_size, device=self.device)
+        self.seq_input_len = 1 + output_length  # 1 from the env, rest previous action
 
+        self.word_embedding = torch.nn.Embedding(self.env_vocab_size, self.embedding_size, device=self.device)
         self.encoder = torch.nn.GRU(self.embedding_size, self.encoder_rnn_hidden_size, batch_first=True)
         self.Q_features = torch.nn.Sequential(
-            torch.nn.Linear(self.encoder_rnn_hidden_size + self.action_embedding_size * self.output_length, self.action_scorer_hidden_dim),
+            torch.nn.Linear(self.encoder_rnn_hidden_size, self.action_scorer_hidden_dim),
             torch.nn.ReLU()
         )
         self.output_qvalues = torch.nn.Sequential(
@@ -69,15 +68,8 @@ class LSTM_DQN(torch.nn.Module):
         assert response_tokens.shape in ((self.batch_size, self.seq_input_len, 1), (32, self.seq_input_len, 1))
         # batch x time x emb
         embeddings = self.word_embedding(response_tokens.squeeze(2))  # batch x time x emb
-        if response_tokens.shape[1] == 1:
-            mask = torch.zeros_like(embeddings)  # for the moment therre is no end of string.
-        else:
-            raise NotImplementedError("Variable length inptus are not supported yet")
-
         encoding_sequence, last_state = self.encoder(embeddings)  # , mask)  # batch x time x h
         last_state = last_state.squeeze(0)  # remove the direction * num_layers dim (always 1)
-
-        # mean_encoding = masked_mean(encoding_sequence, mask)  # batch x h
         return last_state
 
     def get_Q(self, state_representation):

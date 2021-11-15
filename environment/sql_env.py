@@ -16,15 +16,18 @@ from strsimpy.normalized_levenshtein import NormalizedLevenshtein
 class TextSpace(gym.spaces.Space):
     def __init__(self, vocab, length=None):
         self.vocab = vocab
-        self.sequence_length = length
+
         if vocab is None:
             self.vocab_length = None
         else:
+            self.vocab = sorted(vocab)
             self.vocab_length = len(vocab)
 
         if length is None:
+            self.sequence_length = 1
             shape = (1,)
         else:
+            self.sequence_length = length
             shape = (1, length)
         super().__init__(shape=shape, dtype=np.object_)
 
@@ -57,9 +60,10 @@ class SQLEnv(gym.Env):
             # "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
             # 'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
             # *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
-            "columns1",
-            "columns2",
-            "columns3",
+            # "columns1",
+            # "columns2",
+            # "columns3",
+            "columns",
             # *"Incorrect number of bindings supplied".split(),
             # *"no such table".split(),
             "success",
@@ -125,7 +129,9 @@ class SQLEnv(gym.Env):
 
         elif "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
             query_columns = user_query.split(" FROM ")[0].count(',') + 1
-            content = f"columns{query_columns}"
+            # content = f"columns{query_columns}"
+            content = f"columns"
+            # content = "UNK"
 
         elif "incomplete input" in content:
             content = "UNK"

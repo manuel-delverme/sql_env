@@ -1,5 +1,3 @@
-from typing import List
-
 import gym.spaces
 import numpy as np
 import torch
@@ -39,7 +37,7 @@ class CustomAgent:
         self.replay_batch_size = self.config['general']['replay_batch_size']
         self.replay_memory = ReplayBuffer(
             config.buffer_size,
-            gym.spaces.MultiDiscrete(np.ones(observation_space.shape) * observation_space.vocab_length),
+            gym.spaces.MultiDiscrete(np.ones(observation_space.sequence_length) * observation_space.vocab_length),
             gym.spaces.MultiDiscrete(np.ones(action_space.sequence_length) * action_space.vocab_length)
         )
 
@@ -68,14 +66,12 @@ class CustomAgent:
         self.mode = "eval"
         self.model.eval()
 
-    def get_Q(self, token_idx, prev_action) -> torch.Tensor:
+    def get_Q(self, token_idx):
         state_representation = self.model.representation_generator(token_idx)
-        action_representation = self.model.action_embedding(prev_action).reshape(prev_action.shape[0], -1)
-        history_repr = torch.cat((state_representation, action_representation), dim=1)
-        return self.model.get_Q(history_repr)  # each element in list has batch x n_vocab size
+        return self.model.get_Q(state_representation)  # each element in list has batch x n_vocab size
 
-    def act(self, obs, prev_action) -> List[str]:
-        sequence_Q = self.get_Q(obs, prev_action)  # list of batch x vocab
+    def act(self, obs: torch.Tensor) -> torch.Tensor:
+        sequence_Q = self.get_Q(obs)  # list of batch x vocab
 
         # random number for epsilon greedy
         actions = sequence_Q.max(dim=2).indices

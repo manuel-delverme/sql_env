@@ -12,8 +12,11 @@ from lstmDQN.custom_agent import CustomAgent
 def train():
     config_file_name = "lstmDQN/config.yaml"
     env = ppo.envs.make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir, config.device, False)
+
     # This is a hack but the experiment defines it's own action space
     env.action_space = environment.sql_env.TextSpace(ppo.model.get_output_vocab(), env.action_space.sequence_length)
+    env.observation_space = environment.sql_env.TextSpace(env.observation_space.vocab + env.action_space.vocab, env.observation_space.sequence_length + env.action_space.sequence_length)
+
     agent = CustomAgent(config_file_name, env.observation_space, env.action_space)
 
     total_steps = 0
@@ -21,8 +24,8 @@ def train():
     prev_action = torch.zeros(env.action_space.shape, dtype=torch.int)
 
     while total_steps < config.num_env_steps:
-        obs_token = agent.model.env_encode(env.reset())
-        hist_token = torch.cat(obs_token + prev_action, dim=1)
+        obs = env.reset()
+        obs_token = agent.model.env_encode(obs)
         agent.train()
         done = False
         episode_length = 0
@@ -30,7 +33,8 @@ def train():
         agent.current_step = 0
 
         while not done:
-            actions = agent.act(hist_token)
+            hist_token = torch.cat((obs_token.squeeze(2), prev_action), dim=1)
+            actions = agent.act(hist_token.unsqueeze(-1))
             queries = idx_to_str(agent, actions)
 
             if agent.current_step > 0 and agent.current_step % agent.update_per_k_game_steps == 0:
@@ -53,7 +57,7 @@ def train():
 
             next_obs_token = agent.model.env_encode(next_obs)
             del next_obs
-            agent.replay_memory.add(obs_token, next_obs_token, actions, rewards, dones, infos)
+            agent.replay_memory.add(hist_token, next_obs_token, actions, rewards, dones, infos)
 
             prev_action = actions
             obs_token = next_obs_token
