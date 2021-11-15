@@ -1,0 +1,37 @@
+general:
+  discount_gamma: 0.5
+  random_seed: 42
+  use_cuda: True  # disable this when running on machine without cuda
+
+  # replay memory
+  replay_memory_capacity: 500000  # adjust this depending on your RAM size
+  replay_memory_priority_fraction: 0.25
+  update_per_k_game_steps: 4
+  replay_batch_size: 32
+
+  # epsilon greedy
+  epsilon_anneal_episodes: 300  # -1 if not annealing
+  epsilon_anneal_from: 1.0
+  epsilon_anneal_to: 0.2
+
+checkpoint:
+  experiment_tag: 'name_your_current_experiment_here'
+  model_checkpoint_path: 'saved_models'
+  load_pretrained: False  # during test, enable this so that the agent load your pretrained model
+  pretrained_experiment_tag: 'name_of_your_previous_experiemnt_episode_k'
+  save_frequency: 100
+
+training:
+  batch_size: 16
+  nb_epochs: 500
+  max_nb_steps_per_episode: 50  # after this many steps, a game is terminated
+  optimizer:
+    step_rule: 'adam'  # adam
+    learning_rate: 0.001
+    clip_grad_norm: 5
+
+model:
+  embedding_size: 64
+  encoder_rnn_hidden_size: [192]
+  action_scorer_hidden_dim: 128
+  dropout_between_rnn_layers: 0.

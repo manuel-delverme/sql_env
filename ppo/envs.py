@@ -28,9 +28,6 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     def _thunk():
         env = gym.make(env_id)
         env.seed(seed + rank)
-
-        if log_dir is not None:
-            env = Monitor(env, os.path.join(log_dir, str(rank)), allow_early_resets=allow_early_resets)
         return env
 
     return _thunk

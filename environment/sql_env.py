@@ -16,7 +16,10 @@ class TextSpace(gym.spaces.Space):
     def __init__(self, vocab, length=None):
         self.vocab = vocab
         self.sequence_length = length
-        self.vocab_length = len(vocab)
+        if vocab is not None:
+            self.vocab_length = len(vocab)
+        else:
+            self.vocab_length = None
         super().__init__(shape=(1,), dtype=np.object_)
 
     def contains(self, x):
@@ -58,7 +61,7 @@ class SQLEnv(gym.Env):
         self.target_query_length = config.complexity + self.max_columns - 1
         assert self.target_query_length > 1, "lvl1 is bugged"
 
-        self.action_space = TextSpace(output_vocab, self.target_query_length)
+        self.action_space = TextSpace(None, self.target_query_length)
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
@@ -124,7 +127,7 @@ class SQLEnv(gym.Env):
 
         out_tokens = content.split(" ")
 
-        if set(out_tokens).difference(self.action_space.vocab):
+        if set(out_tokens).difference(self.observation_space.vocab):
             if not terminal:
                 print("Query: ", user_query)
                 print("returns: ", content)

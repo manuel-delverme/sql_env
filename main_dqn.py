@@ -1,31 +1,20 @@
-import os
 import time
 from collections import deque
 
 import numpy as np
 import torch
 import tqdm
+import wandb
 
 import config
 import constants
 import environment  # noqa
-import ppo.model
-import wandb
-from ppo import utils
-from ppo.envs import make_vec_envs
-from ppo.storage import RolloutStorage
 
 
 def main():
     torch.manual_seed(config.seed)
     torch.cuda.manual_seed_all(config.seed)
 
-    log_dir = os.path.expanduser(config.log_dir)
-    eval_log_dir = log_dir + "_eval"
-    utils.cleanup_log_dir(log_dir)
-    utils.cleanup_log_dir(eval_log_dir)
-
-    torch.set_num_threads(1)
     envs = make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir, config.device, False)
 
     actor_critic = ppo.model.Policy(envs.observation_space.shape, envs.action_space.vocab,
@@ -54,7 +43,7 @@ def main():
 
     for network_updates in tqdm.trange(num_updates):
         episode_distances.clear()
-        running_logprobs = torch.zeros(envs.action_space.sequence_length, len(ppo.model.Policy.output_vocab), device=config.device)
+        running_logprobs = torch.zeros(envs.action_space.sequence_length, len(ppo.model.Policy.env_vocab), device=config.device)
 
         for rollout_step in range(config.num_steps):
             with torch.no_grad():
@@ -80,7 +69,6 @@ def main():
 
             # If done then clean the history of observations.
             masks = torch.tensor(1 - done, dtype=torch.float32)
-
             rollouts.insert(obs, batch_queries, action_log_prob, value, reward, masks)
 
         if network_updates % config.log_query_interval == 0 and network_updates:

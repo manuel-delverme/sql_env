@@ -5,7 +5,7 @@ import torch.nn as nn
 import config
 
 
-class Policy(nn.Module):
+def get_output_vocab():
     if config.complexity == 3:
         COST_STR = "a FROM p --"
         voc = [
@@ -48,7 +48,6 @@ class Policy(nn.Module):
         ]
     else:
         raise NotImplementedError(f"Complexity {config.complexity} is not implemented.")
-
     output_vocab = sorted(set(voc).union({
         COST_STR,
         " 1 ",  # escape for int
@@ -56,6 +55,11 @@ class Policy(nn.Module):
         " \" ",  # escape for "
         "",
     }))
+    return output_vocab
+
+
+class Policy(nn.Module):
+    output_vocab = get_output_vocab()
 
     def __init__(self, obs_shape, response_vocab, sequence_length, eps):
         super(Policy, self).__init__()

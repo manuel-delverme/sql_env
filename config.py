@@ -40,3 +40,6 @@ PROC_NUM = 1
 HOST = "mila" if user in ("d3sm0", "esac") else ""
 YAML_FILE = "env_suite.yml"
 tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM, wandb_kwargs={"mode": "disabled" if DEBUG else "online", "entity": "rl-sql"})
+
+# DQN
+buffer_size = 1000
