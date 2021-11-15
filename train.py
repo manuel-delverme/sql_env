@@ -1,7 +1,4 @@
-import pickle
-
 import torch
-import yaml
 
 import config
 import environment  # noqa
@@ -10,36 +7,25 @@ import ppo.envs
 import ppo.model
 from lstmDQN.custom_agent import CustomAgent
 
-
-# from textworld import EnvInfos
-
 def train():
     config_file_name = "lstmDQN/config.yaml"
-    env = ppo.envs.make_vec_envs(
-        config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir, config.device, False)
-    env.action_space = environment.sql_env.TextSpace(
-        ppo.model.get_output_vocab(), env.action_space.sequence_length)  # This is a hack but the experiment defines it's own action space
-
+    env = ppo.envs.make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir, config.device, False)
+    # This is a hack but the experiment defines it's own action space
+    env.action_space = environment.sql_env.TextSpace(ppo.model.get_output_vocab(), env.action_space.sequence_length)
     agent = CustomAgent(config_file_name, env.observation_space, env.action_space)
-    reward_ = 0
 
-    with open(config_file_name) as reader:
-        config_ = yaml.safe_load(reader)
-    full_stats = {}
-    for epoch_no in range(1, agent.nb_epochs + 1):
-        stats = {
-            "rewards": [],
-            "steps": [],
-        }
+    total_steps = 0
+    steps_ = 0
+
+    while total_steps < config.num_env_steps:
         obs_token = agent.model.env_encode(env.reset())
-        infos = {}
         agent.train()
-        rewards = [0] * len(obs_token)
-        dones = [False] * len(obs_token)
-        steps = [0] * len(obs_token)
+        done = False
+        episode_length = 0
+        episode_reward = 0
 
-        while not all(dones):
-            actions = agent.act(obs_token, rewards, dones, infos)
+        while not done:
+            actions = agent.act(obs_token)
             queries = idx_to_str(agent, actions)
 
             if agent.current_step > 0 and agent.current_step % agent.update_per_k_game_steps == 0:
@@ -50,11 +36,15 @@ def train():
                     # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
                     torch.nn.utils.clip_grad_norm_(agent.model.parameters(), agent.clip_grad_norm)
                     agent.optimizer.step()
-                    print(loss, reward_)
 
             agent.current_step += 1
+            total_steps += 1
+
             next_obs, rewards, dones, infos = env.step(queries)
-            reward_ = reward_ * 0.9 + rewards * 0.1
+            done, = dones
+
+            episode_length += 1
+            episode_reward += rewards
 
             next_obs_token = agent.model.env_encode(next_obs)
             del next_obs
@@ -64,18 +54,14 @@ def train():
 
             obs_token = next_obs_token
 
-        agent.act(obs_token, rewards, dones, infos)
         agent.current_episode += 1
         if agent.current_episode < agent.epsilon_anneal_episodes:
             agent.epsilon -= (agent.epsilon_anneal_from - agent.epsilon_anneal_to) / float(agent.epsilon_anneal_episodes)
+        if steps_ is None:
+            steps_ = episode_length
+        steps_ = 0.1 * steps_ + 0.9 * episode_length
 
-        stats["rewards"].extend(rewards)
-        stats["steps"].extend(steps)
-
-
-        score = sum(stats["rewards"])
-        steps = sum(stats["steps"])
-        print(f"Epoch: {epoch_no:3d} | {score.item():2.1f} pts | {steps:4.1f} steps")
+        print(f"Steps %: {total_steps / config.num_env_steps} | {episode_reward.item():2.1f} pts | {episode_length:4.1f}({steps_:.1f}) steps")
 
 
 def idx_to_str(agent, actions):

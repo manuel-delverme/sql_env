@@ -12,5 +12,4 @@ USERS_XML = """
 
 
 columns = ["id", "username", "firstname", "surname", "age", "nationality", "created_at"]
-max_columns = 1
-warnings.warn("Using max_column == 1, was 3")
+max_columns = 3

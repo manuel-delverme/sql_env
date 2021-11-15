@@ -52,10 +52,14 @@ class SQLEnv(gym.Env):
             # "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
             # 'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
             # *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
-            "columns",
+            "columns1",
+            "columns2",
+            "columns3",
             # *"Incorrect number of bindings supplied".split(),
             # *"no such table".split(),
-            "success", "UNK"
+            "success",
+            "UNK",
+            # "syntax error",
         }
 
         self.observation_space = TextSpace(output_vocab)
@@ -115,7 +119,8 @@ class SQLEnv(gym.Env):
             content = "UNK"
 
         elif "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
-            content = "columns"
+            query_columns = user_query.split(" FROM ")[0].count(',') + 1
+            content = f"columns{query_columns}"
 
         elif "incomplete input" in content:
             content = "UNK"

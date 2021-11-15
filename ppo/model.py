@@ -10,7 +10,7 @@ def get_output_vocab():
         COST_STR = "a FROM p --"
         voc = [
             " UNION SELECT ",
-            # " NULL, ",
+            " NULL, ",
         ]
     elif config.complexity == 4:
         COST_STR = "FROM p --"

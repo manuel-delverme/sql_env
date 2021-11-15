@@ -24,10 +24,10 @@ class CustomAgent:
 
         with open(config_file_name) as reader:
             self.config = yaml.safe_load(reader)
-        # self.word2id = {}
-        # for i, w in enumerate(self.word_vocab):
-        #     self.word2id[w] = i
-        # self.EOS_id = self.word2id["</S>"]
+
+
+
+
 
         self.batch_size = self.config['training']['batch_size']
         self.max_nb_steps_per_episode = self.config['training']['max_nb_steps_per_episode']
@@ -42,11 +42,11 @@ class CustomAgent:
         self.experiment_tag = self.config['checkpoint']['experiment_tag']
         self.model_checkpoint_path = self.config['checkpoint']['model_checkpoint_path']
         self.save_frequency = self.config['checkpoint']['save_frequency']
-        # if not os.path.exists(self.model_checkpoint_path):
-        #     os.mkdir(self.model_checkpoint_path)
 
-        # if self.config['checkpoint']['load_pretrained']:
-        #     self.load_pretrained_model(self.model_checkpoint_path + '/' + self.config['checkpoint']['pretrained_experiment_tag'] + '.pt')
+
+
+
+
         self.model.to(config.device)
 
         self.replay_batch_size = self.config['general']['replay_batch_size']
@@ -82,78 +82,8 @@ class CustomAgent:
         self.mode = "eval"
         self.model.eval()
 
-    def _start_episode(self, obs: List[str], infos: Dict[str, List[Any]]) -> None:
-        self.init(obs)
-        self._epsiode_has_started = True
-
-    def init(self, obs: List[str]):
-        self.rewards = []
-        self.dones = []
-        self.prev_actions = ["" for _ in range(len(obs))]
+    def _start_episode(self, obs: List[str]) -> None:
         self.current_step = 0
-
-    def get_game_step_info(self, obs: List[str], _infos: Dict[str, List[Any]]):
-        """
-        Get all the available information, and concat them together to be tensor for
-        a neural model. we use post padding here, all information are tokenized here.
-
-        Arguments:
-            obs: Previous command's feedback for each game.
-            infos: Additional information for each game.
-        """
-        # inventory_token_list = [preproc(item, tokenizer=self.nlp) for item in infos["inventory"]]
-        # inventory_id_list = [_words_to_ids(tokens, self.word2id) for tokens in inventory_token_list]
-
-        # feedback_token_list = [preproc(item, str_type='feedback', tokenizer=self.nlp) for item in obs]
-        # feedback_id_list = [_words_to_ids(tokens, self.word2id) for tokens in feedback_token_list]
-
-        # quest_token_list = [preproc(item, tokenizer=self.nlp) for item in infos["extra.recipe"]]
-        # quest_id_list = [_words_to_ids(tokens, self.word2id) for tokens in quest_token_list]
-
-        # prev_action_token_list = [preproc(item, tokenizer=self.nlp) for item in self.prev_actions]
-        # prev_action_id_list = [_words_to_ids(tokens, self.word2id) for tokens in prev_action_token_list]
-
-        # description_token_list = [preproc(item, tokenizer=self.nlp) for item in infos["description"]]
-        # for i, d in enumerate(description_token_list):
-        #     if len(d) == 0:
-        #         description_token_list[i] = ["end"]  # if empty description, insert word "end"
-        # description_id_list = [_words_to_ids(tokens, self.word2id) for tokens in description_token_list]
-        # description_id_list = [_d + _i + _q + _f + _pa for (_d, _i, _q, _f, _pa) in zip(description_id_list, inventory_id_list, quest_id_list, feedback_id_list, prev_action_id_list)]
-
-        # input_description = pad_sequences(description_id_list, maxlen=max_len(description_id_list)).astype('int32')
-        # input_description = to_pt(input_description, self.use_cuda)
-
-        # return input_description, description_id_list
-        raise NotImplementedError
-
-    def word_ids_to_commands(self, verb, adj, noun, adj_2, noun_2):
-        """
-        Turn the 5 indices into actual command strings.
-
-        Arguments:
-            verb: Index of the guessing verb in vocabulary
-            adj: Index of the guessing adjective in vocabulary
-            noun: Index of the guessing noun in vocabulary
-            adj_2: Index of the second guessing adjective in vocabulary
-            noun_2: Index of the second guessing noun in vocabulary
-        """
-        # turns 5 indices into actual command strings
-        if self.word_vocab[verb] in self.single_word_verbs:
-            return self.word_vocab[verb]
-        if adj == self.EOS_id:
-            res = self.word_vocab[verb] + " " + self.word_vocab[noun]
-        else:
-            res = self.word_vocab[verb] + " " + self.word_vocab[adj] + " " + self.word_vocab[noun]
-        if self.word_vocab[verb] not in self.preposition_map:
-            return res
-        if noun_2 == self.EOS_id:
-            return res
-        prep = self.preposition_map[self.word_vocab[verb]]
-        if adj_2 == self.EOS_id:
-            res = res + " " + prep + " " + self.word_vocab[noun_2]
-        else:
-            res = res + " " + prep + " " + self.word_vocab[adj_2] + " " + self.word_vocab[noun_2]
-        return res
 
     def get_chosen_strings(self, chosen_indices):
         """
@@ -198,100 +128,32 @@ class CustomAgent:
         word_indices = [item.unsqueeze(-1) for item in word_indices]  # list of batch x 1
         return word_qvalues, word_indices
 
-    def choose_maxQ_command(self, wordQs):
-        batch_size = wordQs[0].shape[0]
-        # word_ranks_np = [r - np.min(r) for r in word_ranks_np]  # minus the min value, so that all values are non-negative
-        # word_indices = [np.argmax(item, -1) for item in word_ranks_np]  # list of batch
-        # word_qvalues = [[] for _ in word_masks_np]
-        # for i in range(batch_size):
-        #     for j in range(len(word_qvalues)):
-        #         word_qvalues[j].append(wordQs[j][i][word_indices[j][i]])
-        # word_qvalues = [torch.stack(item) for item in word_qvalues]
-        # word_indices = [to_pt(item, self.use_cuda) for item in word_indices]
-        # word_indices = [item.unsqueeze(-1) for item in word_indices]  # list of batch x 1
-        raise NotImplementedError("Use argmax")
-        return word_qvalues, word_indices
-
     def get_Q(self, token_idx):
         state_representation = self.model.representation_generator(token_idx)
         return self.model.get_Q(state_representation)  # each element in list has batch x n_vocab size
 
-    def act_eval(self, obs: List[str], scores: List[int], dones: List[bool], infos: Dict[str, List[Any]]) -> List[str]:
-        """
-        Acts upon the current list of observations, during evaluation.
-
-        One text command must be returned for each observation.
-
-        Arguments:
-            obs: Previous command's feedback for each game.
-            score: The score obtained so far for each game (at previous step).
-            done: Whether a game is finished (at previous step).
-            infos: Additional information for each game.
-
-        Returns:
-            Text commands to be performed (one per observation).
-
-        Notes:
-            Commands returned for games marked as `done` have no effect.
-            The states for finished games are simply copy over until all
-            games are done, in which case `CustomAgent.finish()` is called
-            instead.
-        """
-
-        if self.current_step > 0:
-            # append scores / dones from previous step into memory
-            self.rewards.append(scores)
-            self.dones.append(dones)
-
-        if all(dones):
-            self._end_episode(obs, scores, infos)
-            return  # Nothing to return.
-
-        # input_description, _ = self.get_game_step_info(obs, infos)
+    def act_eval(self, obs: List[str]) -> List[str]:
         input_description = obs
         word_ranks = self.get_Q(input_description)  # list of batch x vocab
-        _, word_indices_maxq = self.choose_maxQ_command(word_ranks, self.word_masks_np)
+        _, word_indices_maxq = self.choose_maxQ_command(word_ranks)
 
         chosen_indices = word_indices_maxq
         chosen_indices = [item.detach() for item in chosen_indices]
         chosen_strings = self.get_chosen_strings(chosen_indices)
-        self.prev_actions = chosen_strings
         self.current_step += 1
 
         return chosen_strings
 
-    def act(self, obs: List[str], rewards: List[int], dones: List[bool], infos: Dict[str, List[Any]]) -> List[str]:
-        """
-        Acts upon the current list of observations.
-
-        One text command must be returned for each observation.
-
-        Arguments:
-            obs: Previous command's feedback for each game.
-            done: Whether a game is finished (at previous step).
-            infos: Additional information for each game.
-
-        Returns:
-            Text commands to be performed (one per observation).
-
-        Notes:
-            Commands returned for games marked as `done` have no effect.
-            The states for finished games are simply copy over until all
-            games are done, in which case `CustomAgent.finish()` is called
-            instead.
-        """
-        if not self._epsiode_has_started:
-            self._start_episode(obs, infos)
-
+    def act(self, obs: List[str]) -> List[str]:
         if self.mode == "eval":
-            return self.act_eval(obs, rewards, dones, infos)
+            return self.act_eval(obs)
 
         sequence_Q = self.get_Q(obs)  # list of batch x vocab
 
         # random number for epsilon greedy
         actions = sequence_Q.max(dim=2).indices
         rand_num = np.random.uniform(low=0.0, high=1.0, size=(obs.shape[0]))
-        rand_idx = torch.randint(0, sequence_Q.shape[1], size=actions.shape)
+        rand_idx = torch.randint(0, self.model.agent_vocab_size, size=actions.shape)
         actions[rand_num < self.epsilon, :] = rand_idx[rand_num < self.epsilon, :]
         return actions
 

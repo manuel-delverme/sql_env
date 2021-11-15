@@ -30,11 +30,22 @@ class LSTM_DQN(torch.nn.Module):
         self.device = device
         self.model_config = model_config
         # self.enable_cuda = enable_cuda
-        self.word_vocab_size = len(agent_vocab)
+        self.agent_vocab_size = len(agent_vocab)
+        self.env_vocab_size = len(env_vocab)
         # self.id2word = word_vocab
         self.output_length = output_length
         self.read_config()
-        self._def_layers()
+
+        self.word_embedding = torch.nn.Embedding(self.env_vocab_size, self.embedding_size, device=self.device)
+        self.encoder = torch.nn.GRU(self.embedding_size, self.encoder_rnn_hidden_size, batch_first=True)
+        self.Q_features = torch.nn.Sequential(
+            torch.nn.Linear(self.encoder_rnn_hidden_size, self.action_scorer_hidden_dim),
+            torch.nn.ReLU()
+        )
+        self.output_qvalues = torch.nn.Sequential(
+            torch.nn.Linear(self.action_scorer_hidden_dim, self.agent_vocab_size * self.output_length),
+            torch.nn.Unflatten(-1, (self.output_length, self.agent_vocab_size), )
+        )
         self.init_weights()
 
         self.agent_vocab = sorted(agent_vocab)
@@ -60,25 +71,6 @@ class LSTM_DQN(torch.nn.Module):
         self.embedding_size = self.model_config['embedding_size']
         self.encoder_rnn_hidden_size, = self.model_config['encoder_rnn_hidden_size']
         self.action_scorer_hidden_dim = self.model_config['action_scorer_hidden_dim']
-
-    def _def_layers(self):
-        self.word_embedding = torch.nn.Embedding(self.word_vocab_size, self.embedding_size, device=self.device)
-        self.encoder = torch.nn.GRU(self.embedding_size, self.encoder_rnn_hidden_size, batch_first=True)
-
-        self.Q_features = torch.nn.Sequential(
-            torch.nn.Linear(self.encoder_rnn_hidden_size, self.action_scorer_hidden_dim),
-            torch.nn.ReLU()
-        )
-
-        # for _ in range(self.output_length):
-        #     action_scorers.append(torch.nn.Linear(self.action_scorer_hidden_dim, self.word_vocab_size, bias=False))
-        # self.output_qvalues = torch.nn.ModuleList(action_scorers)
-        self.output_qvalues = torch.nn.Sequential(
-            torch.nn.Linear(self.action_scorer_hidden_dim, self.word_vocab_size * self.output_length),
-            torch.nn.Unflatten(-1, (self.output_length, self.word_vocab_size), )
-        )
-
-        self.fake_recurrent_mask = None
 
     def init_weights(self):
         torch.nn.init.xavier_uniform_(self.Q_features[0].weight.data)
