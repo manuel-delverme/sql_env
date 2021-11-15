@@ -25,7 +25,7 @@ class LSTM_DQN(torch.nn.Module):
     batch_size = 1
     seq_input_len = 1
 
-    def __init__(self, model_config, agent_vocab, env_vocab, device, output_length):
+    def __init__(self, model_config, agent_vocab, env_vocab, device, output_length: int):
         super(LSTM_DQN, self).__init__()
         self.device = device
         self.model_config = model_config
@@ -69,17 +69,23 @@ class LSTM_DQN(torch.nn.Module):
             torch.nn.Linear(self.encoder_rnn_hidden_size, self.action_scorer_hidden_dim),
             torch.nn.ReLU()
         )
-        action_scorers = []
-        for _ in range(self.output_length):
-            action_scorers.append(torch.nn.Linear(self.action_scorer_hidden_dim, self.word_vocab_size, bias=False))
-        self.output_qvalues = torch.nn.ModuleList(action_scorers)
+
+        # for _ in range(self.output_length):
+        #     action_scorers.append(torch.nn.Linear(self.action_scorer_hidden_dim, self.word_vocab_size, bias=False))
+        # self.output_qvalues = torch.nn.ModuleList(action_scorers)
+        self.output_qvalues = torch.nn.Sequential(
+            torch.nn.Linear(self.action_scorer_hidden_dim, self.word_vocab_size * self.output_length),
+            torch.nn.Unflatten(-1, (self.output_length, self.word_vocab_size), )
+        )
+
         self.fake_recurrent_mask = None
 
     def init_weights(self):
         torch.nn.init.xavier_uniform_(self.Q_features[0].weight.data)
-        for i in range(len(self.output_qvalues)):
-            torch.nn.init.xavier_uniform_(self.output_qvalues[i].weight.data)
         self.Q_features[0].bias.data.fill_(0)
+        # for i in range(len(self.output_qvalues)):
+        #     torch.nn.init.xavier_uniform_(self.output_qvalues[i].weight.data)
+        torch.nn.init.xavier_uniform_(self.output_qvalues[0].weight.data)
 
     def representation_generator(self, response_tokens):
         assert response_tokens.shape in ((self.batch_size, self.seq_input_len, 1), (32, self.seq_input_len, 1))
@@ -98,10 +104,11 @@ class LSTM_DQN(torch.nn.Module):
 
     def get_Q(self, state_representation):
         hidden = self.Q_features(state_representation)  # batch x hid
-        actions_q = []
-        for output_qvalue in self.output_qvalues:
-            actions_q.append(output_qvalue(hidden))  # batch x n_vocab
-        actions_q = torch.stack(actions_q, dim=1)  # Batch x output_length x n_vocab
+        # actions_q = []
+        actions_q = self.output_qvalues(hidden)
+        # for output_qvalue in self.output_qvalues:
+        #     actions_q.append(output_qvalue(hidden))  # batch x n_vocab
+        # actions_q = torch.stack(actions_q, dim=1)  # Batch x output_length x n_vocab
         return actions_q
 
     def agent_encode(self, batch_response):

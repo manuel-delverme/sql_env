@@ -21,6 +21,7 @@ def train():
         ppo.model.get_output_vocab(), env.action_space.sequence_length)  # This is a hack but the experiment defines it's own action space
 
     agent = CustomAgent(config_file_name, env.observation_space, env.action_space)
+    reward_ = 0
 
     with open(config_file_name) as reader:
         config_ = yaml.safe_load(reader)
@@ -38,29 +39,23 @@ def train():
         steps = [0] * len(obs_token)
 
         while not all(dones):
-            # Increase step counts.
             actions = agent.act(obs_token, rewards, dones, infos)
+            queries = idx_to_str(agent, actions)
 
-            chosen_strings = []
-            for query_idx in actions:
-                query_tokens = [agent.action_vocab[idx] for idx in query_idx]
-                chosen_strings.append(query_tokens)
-
-            # update neural model by replaying snapshots in replay memory
             if agent.current_step > 0 and agent.current_step % agent.update_per_k_game_steps == 0:
                 loss = agent.update()
                 if loss is not None:
-                    # Backpropagate
                     agent.optimizer.zero_grad()
                     loss.backward(retain_graph=True)
                     # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
                     torch.nn.utils.clip_grad_norm_(agent.model.parameters(), agent.clip_grad_norm)
-                    agent.optimizer.step()  # apply gradients
+                    agent.optimizer.step()
+                    print(loss, reward_)
 
             agent.current_step += 1
-
-            queries = ["".join(query) for query in chosen_strings]
             next_obs, rewards, dones, infos = env.step(queries)
+            reward_ = reward_ * 0.9 + rewards * 0.1
+
             next_obs_token = agent.model.env_encode(next_obs)
             del next_obs
 
@@ -68,25 +63,29 @@ def train():
                 agent.replay_memory.add(obs_token, next_obs_token, actions, rewards, dones, infos)
 
             obs_token = next_obs_token
-            # append next step
-            # history = [x + [obs[i]] for i, x in enumerate(history)]
-        # Let the agent knows the game is done.
+
         agent.act(obs_token, rewards, dones, infos)
-        agent._end_episode(obs_token, rewards, infos)
+        agent.current_episode += 1
+        if agent.current_episode < agent.epsilon_anneal_episodes:
+            agent.epsilon -= (agent.epsilon_anneal_from - agent.epsilon_anneal_to) / float(agent.epsilon_anneal_episodes)
 
         stats["rewards"].extend(rewards)
         stats["steps"].extend(steps)
-        full_stats[epoch_no] = stats
 
-        score = sum(stats["rewards"]) / agent.batch_size
-        steps = sum(stats["steps"]) / agent.batch_size
+
+        score = sum(stats["rewards"])
+        steps = sum(stats["steps"])
         print(f"Epoch: {epoch_no:3d} | {score.item():2.1f} pts | {steps:4.1f} steps")
-    stats_file_name = config_file_name.split("/")
-    stats_file_name[-2] = "stats"
-    stats_file_name[-1] = stats_file_name[-1].strip("yaml") + "pickle"
-    stats_file_name = "/".join(stats_file_name)
-    with open(stats_file_name, "wb") as f:
-        pickle.dump(full_stats, f)
+
+
+def idx_to_str(agent, actions):
+    chosen_strings = []
+    for query_idx in actions:
+        query_tokens = [agent.action_vocab[idx] for idx in query_idx]
+        chosen_strings.append(query_tokens)
+
+    queries = ["".join(query) for query in chosen_strings]
+    return queries
 
 
 if __name__ == '__main__':

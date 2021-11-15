@@ -1,3 +1,5 @@
+import warnings
+
 USERS_XML = """
 <?xml version="1.0" encoding="utf-8"?>
 <users>
@@ -10,4 +12,5 @@ USERS_XML = """
 
 
 columns = ["id", "username", "firstname", "surname", "age", "nationality", "created_at"]
-max_columns = 3
+max_columns = 1
+warnings.warn("Using max_column == 1, was 3")

@@ -10,6 +10,7 @@ import config
 import constants
 
 torch.manual_seed(1)
+from strsimpy.normalized_levenshtein import NormalizedLevenshtein
 
 
 class TextSpace(gym.spaces.Space):
@@ -31,6 +32,7 @@ class TextSpace(gym.spaces.Space):
 
 class SQLEnv(gym.Env):
     max_columns = constants.max_columns
+    normalized_levenshtein = NormalizedLevenshtein()
 
     def render(self, mode='human'):
         pass
@@ -93,8 +95,8 @@ class SQLEnv(gym.Env):
             reward = 1.
             terminal = True
 
-        similarity = self.get_similarity(user_query, solution)
-        # reward += 0.01 * similarity
+        similarity = self.normalized_levenshtein.similarity(user_query, " ".join(solution))
+        # reward += 0.1 * similarity
 
         if ": syntax error" in content and "near " in content:
             content = "syntax error"
@@ -159,7 +161,7 @@ class SQLEnv(gym.Env):
 
     def get_similarity(self, input_query, solution):
         similarity = 0
-        for i, s in zip(input_query.split(), solution[-self.target_query_length:]):
+        for i, s in zip(input_query.split(), solution[:-self.target_query_length]):
             similarity += float(i.strip() == s.strip()) / self.target_query_length
         return similarity / self.target_query_length
 
@@ -180,10 +182,12 @@ class SQLEnv(gym.Env):
         columns = np.random.randint(1, self.max_columns + 1)
         selected_columns = ", ".join(constants.columns[:columns])
         hidden_parameter = np.random.choice([
-            "firstname='{input}'",
-            "nationality=\"{input}\"",
+            # "firstname='{input}'",
+            # "nationality=\"{input}\"",
             "age={input}",
         ])
+        import warnings
+        warnings.warn("only 1 hidden parameter")
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
         state, _, _, _ = self.step("--")
         return state

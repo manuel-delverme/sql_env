@@ -10,7 +10,7 @@ def get_output_vocab():
         COST_STR = "a FROM p --"
         voc = [
             " UNION SELECT ",
-            " NULL, ",
+            # " NULL, ",
         ]
     elif config.complexity == 4:
         COST_STR = "FROM p --"
@@ -51,10 +51,12 @@ def get_output_vocab():
     output_vocab = sorted(set(voc).union({
         COST_STR,
         " 1 ",  # escape for int
-        " ' ",  # escape for '
-        " \" ",  # escape for "
-        "",
+        # " ' ",  # escape for '
+        # " \" ",  # escape for "
+        # "",
     }))
+    import warnings
+    warnings.warn(f"Output vocab: {output_vocab}, misses escape for strings or empty string and NULL")
     return output_vocab
 
 

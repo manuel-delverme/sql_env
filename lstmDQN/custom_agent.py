@@ -68,15 +68,6 @@ class CustomAgent:
         self.update_per_k_game_steps = self.config['general']['update_per_k_game_steps']
         self.clip_grad_norm = self.config['training']['optimizer']['clip_grad_norm']
 
-        # self.nlp = spacy.load('en', disable=['ner', 'parser', 'tagger'])
-        # self.preposition_map = {"take": "from",
-        #                         "chop": "with",
-        #                         "slice": "with",
-        #                         "dice": "with",
-        #                         "cook": "with",
-        #                         "insert": "into",
-        #                         "put": "on"}
-        # self.single_word_verbs = set(["inventory", "look"])
         self.discount_gamma = self.config['general']['discount_gamma']
         self.current_episode = 0
         self.current_step = 0
@@ -84,107 +75,21 @@ class CustomAgent:
         self.best_avg_score_so_far = 0.0
 
     def train(self):
-        """
-        Tell the agent that it's training phase.
-        """
         self.mode = "train"
         self.model.train()
 
     def eval(self):
-        """
-        Tell the agent that it's evaluation phase.
-        """
         self.mode = "eval"
         self.model.eval()
 
     def _start_episode(self, obs: List[str], infos: Dict[str, List[Any]]) -> None:
-        """
-        Prepare the agent for the upcoming episode.
-
-        Arguments:
-            obs: Initial feedback for each game.
-            infos: Additional information for each game.
-        """
-        self.init(obs, infos)
+        self.init(obs)
         self._epsiode_has_started = True
 
-    def _end_episode(self, obs: List[str], scores: List[int], infos: Dict[str, List[Any]]) -> None:
-        """
-        Tell the agent the episode has terminated.
-
-        Arguments:
-            obs: Previous command's feedback for each game.
-            score: The score obtained so far for each game.
-            infos: Additional information for each game.
-        """
-        self.finish()
-        self._epsiode_has_started = False
-
-    def load_pretrained_model(self, load_from):
-        """
-        Load pretrained checkpoint from file.
-
-        Arguments:
-            load_from: File name of the pretrained model checkpoint.
-        """
-        print("loading model from %s\n" % (load_from))
-        try:
-            if self.use_cuda:
-                state_dict = torch.load(load_from)
-            else:
-                state_dict = torch.load(load_from, map_location='cpu')
-            self.model.load_state_dict(state_dict)
-        except:
-            print("Failed to load checkpoint...")
-
-    def init(self, obs: List[str], infos: Dict[str, List[Any]]):
-        """
-        Prepare the agent for the upcoming games.
-
-        Arguments:
-            obs: Previous command's feedback for each game.
-            infos: Additional information for each game.
-        """
-        # reset agent, get vocabulary masks for verbs / adjectives / nouns
+    def init(self, obs: List[str]):
         self.rewards = []
         self.dones = []
         self.prev_actions = ["" for _ in range(len(obs))]
-        # get word masks
-        batch_size = obs.shape[0]
-        # verbs_word_list = infos["verbs"]
-        # noun_word_list, adj_word_list = [], []
-        # for entities in infos["entities"]:
-        #     tmp_nouns, tmp_adjs = [], []
-        #     for name in entities:
-        #         split = name.split()
-        #         tmp_nouns.append(split[-1])
-        #         if len(split) > 1:
-        #             tmp_adjs += split[:-1]
-        #     noun_word_list.append(list(set(tmp_nouns)))
-        #     adj_word_list.append(list(set(tmp_adjs)))
-
-        # verb_mask = np.zeros((batch_size, len(self.word_vocab)), dtype="float32")
-        # noun_mask = np.zeros((batch_size, len(self.word_vocab)), dtype="float32")
-        # adj_mask = np.zeros((batch_size, len(self.word_vocab)), dtype="float32")
-        # for i in range(batch_size):
-        #     for w in verbs_word_list[i]:
-        #         if w in self.word2id:
-        #             verb_mask[i][self.word2id[w]] = 1.0
-        #     for w in noun_word_list[i]:
-        #         if w in self.word2id:
-        #             noun_mask[i][self.word2id[w]] = 1.0
-        #     for w in adj_word_list[i]:
-        #         if w in self.word2id:
-        #             adj_mask[i][self.word2id[w]] = 1.0
-        # second_noun_mask = copy.copy(noun_mask)
-        # second_adj_mask = copy.copy(adj_mask)
-        # second_noun_mask[:, self.EOS_id] = 1.0
-        # adj_mask[:, self.EOS_id] = 1.0
-        # second_adj_mask[:, self.EOS_id] = 1.0
-        # self.word_masks_np = [verb_mask, adj_mask, noun_mask, second_adj_mask, second_noun_mask]
-
-        # self.cache_description_id_list = None
-        # self.cache_chosen_indices = None
         self.current_step = 0
 
     def get_game_step_info(self, obs: List[str], _infos: Dict[str, List[Any]]):
@@ -381,22 +286,13 @@ class CustomAgent:
         if self.mode == "eval":
             return self.act_eval(obs, rewards, dones, infos)
 
-        if self.current_step > 0:
-            # append scores / dones from previous step into memory
-            self.rewards.append(rewards)
-            self.dones.append(dones)
-            # compute previous step's rewards and masks
-            # rewards_np, rewards, mask_np, mask = self.compute_reward()
-
         sequence_Q = self.get_Q(obs)  # list of batch x vocab
-        # _, word_indices_maxq = self.choose_maxQ_command(sequence_Q, self.word_masks_np)
-        # _, word_indices_random = self.choose_random_command(sequence_Q, self.word_masks_np)
 
         # random number for epsilon greedy
         actions = sequence_Q.max(dim=2).indices
         rand_num = np.random.uniform(low=0.0, high=1.0, size=(obs.shape[0]))
         rand_idx = torch.randint(0, sequence_Q.shape[1], size=actions.shape)
-        actions[rand_num < self.epsilon] = rand_idx[rand_num < self.epsilon]
+        actions[rand_num < self.epsilon, :] = rand_idx[rand_num < self.epsilon, :]
         return actions
 
     def compute_reward(self):
@@ -434,14 +330,6 @@ class CustomAgent:
         if not self.replay_memory.full and self.replay_memory.pos < self.replay_batch_size:
             return None
         batch = self.replay_memory.sample(self.replay_batch_size)
-        # batch = Transition(*zip(*transitions))
-
-        # observation_id_list = pad_sequences(batch.observation_id_list, maxlen=max_len(batch.observation_id_list)).astype('int32')
-        # input_observation = to_pt(batch.observations, self.use_cuda)
-        # next_observation_id_list = pad_sequences(batch.next_observation_id_list, maxlen=max_len(batch.next_observation_id_list)).astype('int32')
-        # next_input_observation = to_pt(next_observation_id_list, self.use_cuda)
-        # chosen_indices = list(list(zip(*batch.word_indices)))
-        # chosen_indices = [torch.stack(item, 0) for item in chosen_indices]  # list of batch x 1
 
         server_response_Q = self.get_Q(batch.observations.unsqueeze(-1))  # list of batch x input_length x num_vocab
         word_qvalues = []
@@ -455,44 +343,12 @@ class CustomAgent:
         next_word_qvalues = next_server_reponse_Q.max(dim=-1).values
         next_q_value = torch.mean(next_word_qvalues, 1)
 
-        next_q_value = next_q_value.detach()
+        next_q_value = next_q_value.detach().unsqueeze(-1)
 
         rewards = batch.rewards
         not_done = 1. - batch.dones
-        rewards = rewards + not_done * next_q_value * self.discount_gamma  # batch
+        values = rewards + not_done * next_q_value * self.discount_gamma  # batch
 
-        mask = torch.ones_like(rewards)  # Not used yet.
-        loss = F.smooth_l1_loss(q_value * mask, rewards * mask)
+        mask = torch.ones_like(values)  # Not used yet.
+        loss = F.smooth_l1_loss(q_value * mask, values * mask)
         return loss
-
-    def finish(self) -> None:
-        """
-        All games in the batch are finished. One can choose to save checkpoints,
-        evaluate on validation set, or do parameter annealing here.
-
-        """
-        # Game has finished (either win, lose, or exhausted all the given steps).
-        self.final_rewards = np.array(self.rewards[-1], dtype='float32')  # batch
-        dones = []
-        for d in self.dones:
-            d = np.array([float(dd) for dd in d], dtype='float32')
-            dones.append(d)
-        dones = np.array(dones)
-        step_used = 1.0 - dones
-        self.step_used_before_done = np.sum(step_used, 0)  # batch
-
-        # self.history_avg_scores.push(np.mean(self.final_rewards))
-        # save checkpoint
-        if self.mode == "train" and self.current_episode % self.save_frequency == 0:
-            # avg_score = self.history_avg_scores.get_avg()
-            # if avg_score > self.best_avg_score_so_far:
-            #     self.best_avg_score_so_far = avg_score
-
-            save_to = self.model_checkpoint_path + '/' + self.experiment_tag + "_episode_" + str(self.current_episode) + ".pt"
-            torch.save(self.model.state_dict(), save_to)
-            print("========= saved checkpoint =========")
-
-        self.current_episode += 1
-        # annealing
-        if self.current_episode < self.epsilon_anneal_episodes:
-            self.epsilon -= (self.epsilon_anneal_from - self.epsilon_anneal_to) / float(self.epsilon_anneal_episodes)
