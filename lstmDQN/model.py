@@ -26,21 +26,23 @@ class LSTM_DQN(torch.nn.Module):
     batch_size = 1
     seq_input_len = 1
 
-    def __init__(self, model_config, agent_vocab, env_vocab, device, output_length: int):
+    def __init__(self, agent_vocab, env_vocab, device, output_length: int):
         super(LSTM_DQN, self).__init__()
         self.device = device
-        self.model_config = model_config
         self.agent_vocab_size = len(agent_vocab)
         self.env_vocab_size = len(env_vocab)
         self.output_length = output_length
         self.embedding_size = config.embedding_size
-        self.encoder_rnn_hidden_size, = config.encoder_rnn_hidden_size
+        self.action_embedding_size = config.embedding_size
+        self.encoder_rnn_hidden_size = config.encoder_rnn_hidden_size
         self.action_scorer_hidden_dim = config.action_scorer_hidden_dim
 
         self.word_embedding = torch.nn.Embedding(self.env_vocab_size, self.embedding_size, device=self.device)
+        self.action_embedding = torch.nn.Embedding(self.agent_vocab_size, self.action_embedding_size, device=self.device)
+
         self.encoder = torch.nn.GRU(self.embedding_size, self.encoder_rnn_hidden_size, batch_first=True)
         self.Q_features = torch.nn.Sequential(
-            torch.nn.Linear(self.encoder_rnn_hidden_size, self.action_scorer_hidden_dim),
+            torch.nn.Linear(self.encoder_rnn_hidden_size + self.action_embedding_size * self.output_length, self.action_scorer_hidden_dim),
             torch.nn.ReLU()
         )
         self.output_qvalues = torch.nn.Sequential(

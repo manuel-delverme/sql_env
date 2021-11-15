@@ -18,9 +18,11 @@ def train():
 
     total_steps = 0
     steps_ = 0
+    prev_action = torch.zeros(env.action_space.shape, dtype=torch.int)
 
     while total_steps < config.num_env_steps:
         obs_token = agent.model.env_encode(env.reset())
+        hist_token = torch.cat(obs_token + prev_action, dim=1)
         agent.train()
         done = False
         episode_length = 0
@@ -28,7 +30,7 @@ def train():
         agent.current_step = 0
 
         while not done:
-            actions = agent.act(obs_token)
+            actions = agent.act(hist_token)
             queries = idx_to_str(agent, actions)
 
             if agent.current_step > 0 and agent.current_step % agent.update_per_k_game_steps == 0:
@@ -53,6 +55,7 @@ def train():
             del next_obs
             agent.replay_memory.add(obs_token, next_obs_token, actions, rewards, dones, infos)
 
+            prev_action = actions
             obs_token = next_obs_token
 
         agent.current_episode += 1
@@ -60,7 +63,7 @@ def train():
             agent.epsilon -= (agent.epsilon_anneal_from - agent.epsilon_anneal_to) / float(agent.epsilon_anneal_episodes)
         if steps_ is None:
             steps_ = episode_length
-        steps_ = 0.1 * steps_ + 0.9 * episode_length
+        steps_ = 0.9 * steps_ + 0.1 * episode_length
 
         print(f"Steps %: {total_steps / config.num_env_steps} | {episode_reward.item():2.1f} pts | {episode_length:4.1f}({steps_:.1f}) steps")
 
@@ -76,7 +79,7 @@ def idx_to_str(agent, actions):
 
 
 if __name__ == '__main__':
-    experiment_buddy.register(vars(config))
+    experiment_buddy.register_defaults(vars(config))
     PROC_NUM = 1
     HOST = "mila" if config.user == "esac" else ""
     YAML_FILE = "env_suite.yml"

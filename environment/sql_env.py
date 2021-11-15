@@ -17,11 +17,16 @@ class TextSpace(gym.spaces.Space):
     def __init__(self, vocab, length=None):
         self.vocab = vocab
         self.sequence_length = length
-        if vocab is not None:
-            self.vocab_length = len(vocab)
-        else:
+        if vocab is None:
             self.vocab_length = None
-        super().__init__(shape=(1,), dtype=np.object_)
+        else:
+            self.vocab_length = len(vocab)
+
+        if length is None:
+            shape = (1,)
+        else:
+            shape = (1, length)
+        super().__init__(shape=shape, dtype=np.object_)
 
     def contains(self, x):
         raise NotImplemented

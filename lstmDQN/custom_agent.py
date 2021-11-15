@@ -28,7 +28,7 @@ class CustomAgent:
         np.random.seed(self.config['general']['random_seed'])
         torch.manual_seed(self.config['general']['random_seed'])
         self.device = config.device
-        self.model = LSTM_DQN(self.config["model"], self.action_vocab, self.env_vocab, self.device, action_space.sequence_length)
+        self.model = LSTM_DQN(self.action_vocab, self.env_vocab, self.device, action_space.sequence_length)
 
         self.experiment_tag = self.config['checkpoint']['experiment_tag']
         self.model_checkpoint_path = self.config['checkpoint']['model_checkpoint_path']
@@ -68,12 +68,14 @@ class CustomAgent:
         self.mode = "eval"
         self.model.eval()
 
-    def get_Q(self, token_idx):
+    def get_Q(self, token_idx, prev_action) -> torch.Tensor:
         state_representation = self.model.representation_generator(token_idx)
-        return self.model.get_Q(state_representation)  # each element in list has batch x n_vocab size
+        action_representation = self.model.action_embedding(prev_action).reshape(prev_action.shape[0], -1)
+        history_repr = torch.cat((state_representation, action_representation), dim=1)
+        return self.model.get_Q(history_repr)  # each element in list has batch x n_vocab size
 
-    def act(self, obs: List[str]) -> List[str]:
-        sequence_Q = self.get_Q(obs)  # list of batch x vocab
+    def act(self, obs, prev_action) -> List[str]:
+        sequence_Q = self.get_Q(obs, prev_action)  # list of batch x vocab
 
         # random number for epsilon greedy
         actions = sequence_Q.max(dim=2).indices
