@@ -40,7 +40,6 @@ class TextSpace(gym.spaces.Space):
 
 
 class SQLEnv(gym.Env):
-    max_columns = constants.max_columns
     normalized_levenshtein = NormalizedLevenshtein()
 
     def render(self, mode='human'):
@@ -49,6 +48,7 @@ class SQLEnv(gym.Env):
     def __init__(self):
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
+        self.max_columns = config.max_columns
 
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
@@ -57,6 +57,11 @@ class SQLEnv(gym.Env):
 
         data = []
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
+        task_keywords = [
+            "age",
+            "firstname",
+            "nationality",
+        ]
         output_vocab = {
             # "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
             # 'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
@@ -69,13 +74,11 @@ class SQLEnv(gym.Env):
             # *"no such table".split(),
             "success",
             "UNK",
-            "syntax_error",
-            "firstname",
-            "nationality",
-            "age",
+            # "syntax_error",
+            *task_keywords[:config.num_tasks],
         }
 
-        self.observation_space = TextSpace(output_vocab, 2, (1, ))
+        self.observation_space = TextSpace(output_vocab, 2, (1,))
 
         self.target_query_length = config.complexity + self.max_columns - 1
         assert self.target_query_length > 1, "lvl1 is bugged"
@@ -87,6 +90,7 @@ class SQLEnv(gym.Env):
 
         self.query_template = None
         self.hidden_parameter = None
+        self.selected_columns = None
         self.reset()
 
     def step(self, user_query: str):
@@ -117,8 +121,8 @@ class SQLEnv(gym.Env):
         # reward += 0.1 * similarity
 
         if ": syntax error" in content and "near " in content:
-            content = "syntax_error"
-            # content = "UNK"
+            # content = "syntax_error"
+            content = "UNK"
 
         elif "no such column" in content:
             content = "no such column"
@@ -203,11 +207,12 @@ class SQLEnv(gym.Env):
     def reset(self):
         columns = np.random.randint(1, self.max_columns + 1)
         selected_columns = ", ".join(constants.columns[:columns])
+        self.selected_columns = selected_columns
         self.hidden_parameter = np.random.choice([
-            "firstname='{input}'",
-            "nationality=\"{input}\"",
-            "age={input}",
-        ])
+                                                     "age={input}",
+                                                     # "firstname='{input}'",
+                                                     # "nationality=\"{input}\"",
+                                                 ][:config.num_tasks])
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {self.hidden_parameter}"
         state, _, _, _ = self.step("--")
         return state

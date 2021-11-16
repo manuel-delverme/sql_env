@@ -1,12 +1,10 @@
 import getpass
 import sys
 
-import experiment_buddy
-
 lr = 7e-4  # _, help='learning rate (default: 7e_4)')
 eps = 1e-5  # _, help='RMSprop optimizer epsilon (default: 1e_5)')
 alpha = 0.99  # _, help='RMSprop optimizer apha (default: 0.99)')
-gamma = 0.9
+gamma = 0.5
 use_gae = False  # _, help='use generalized advantage estimation')
 gae_lambda = 0.95  # _, help='gae lambda parameter (default: 0.95)')
 entropy_coef = 0.01  # _, help='entropy term coefficient (default: 0.01)')
@@ -34,7 +32,6 @@ env_name = "SQL-v1"
 user = getpass.getuser()
 complexity = 3
 
-
 # DQN
 buffer_size = 1000
 
@@ -43,4 +40,6 @@ encoder_rnn_hidden_size = 192
 action_scorer_hidden_dim = 128
 DEBUG = sys.gettrace() is not None
 
-action_hist = 2
+action_hist = 1
+num_tasks = 1
+max_columns = 1  # 3

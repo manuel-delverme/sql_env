@@ -18,7 +18,7 @@ def _text_to_token_idx(batch_response, table):
             assert len(content) == 2, "variable length content not handled, will required EOS token."
             tokens.append(sentence_idxs)
     assert len(tokens) == len(batch_response)
-    tokens = torch.stack(tokens).unsqueeze(-1)  # batch x time x 1
+    tokens = torch.stack(tokens)  # batch x seq_len
     return tokens
 
 

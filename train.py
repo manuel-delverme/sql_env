@@ -21,6 +21,7 @@ def train():
     env.observation_space = environment.sql_env.TextSpace(env.observation_space.vocab + env.action_space.vocab, obs_len, (1, obs_len))
 
     agent = CustomAgent(config_file_name, env.observation_space, env.action_space)
+    agent.train()
 
     total_steps = 0
     steps_ = 0
@@ -29,25 +30,23 @@ def train():
     while total_steps < config.num_env_steps:
         obs = env.reset()
         obs_token = agent.model.env_encode(obs)
-        agent.train()
         done = False
         episode_length = 0
         episode_reward = 0
         agent.current_step = 0
 
-        hist_token = torch.cat((obs_token.squeeze(2), *prev_action), dim=1)
+        hist_token = torch.cat((obs_token, *prev_action), dim=1)
         while not done:
             actions = agent.act(hist_token.unsqueeze(-1))
             queries = idx_to_str(agent, actions)
 
-            if agent.current_step > 0 and agent.current_step % agent.update_per_k_game_steps == 0:
-                loss = agent.update()
-                if loss is not None:
-                    agent.optimizer.zero_grad()
-                    loss.backward(retain_graph=True)
-                    # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-                    torch.nn.utils.clip_grad_norm_(agent.model.parameters(), agent.clip_grad_norm)
-                    agent.optimizer.step()
+            loss = agent.update()
+            if loss is not None:
+                agent.optimizer.zero_grad()
+                loss.backward(retain_graph=True)
+                # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+                torch.nn.utils.clip_grad_norm_(agent.model.parameters(), agent.clip_grad_norm)
+                agent.optimizer.step()
 
             agent.current_step += 1
             total_steps += 1
@@ -61,7 +60,7 @@ def train():
             next_obs_token = agent.model.env_encode(next_obs)
             del next_obs
             prev_action.append(actions)
-            next_hist_token = torch.cat((next_obs_token.squeeze(2), *prev_action), dim=1)
+            next_hist_token = torch.cat((next_obs_token, *prev_action), dim=1)
 
             agent.replay_memory.add(hist_token, next_hist_token, actions, rewards, dones, infos)
             hist_token = next_hist_token

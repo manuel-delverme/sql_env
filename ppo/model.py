@@ -48,15 +48,19 @@ def get_output_vocab():
         ]
     else:
         raise NotImplementedError(f"Complexity {config.complexity} is not implemented.")
-    output_vocab = sorted(set(voc).union({
-        COST_STR,
+
+    escapes = [
         " 1 ",  # escape for int
         " ' ",  # escape for '
         " \" ",  # escape for "
+    ][:config.num_tasks]
+    output_vocab = sorted(set(voc).union({
+        COST_STR,
+        *escapes,
         # "",
     }))
-    import warnings
-    warnings.warn(f"Output vocab: {output_vocab}, misses escape for strings or empty string and NULL")
+
+
     return output_vocab
 
 
