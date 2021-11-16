@@ -42,4 +42,4 @@ DEBUG = sys.gettrace() is not None
 
 action_hist = 1
 num_tasks = 1
-max_columns = 1  # 3
+max_columns = 2  # 3

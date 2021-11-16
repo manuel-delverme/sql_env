@@ -1,6 +1,7 @@
 import collections
 
 import torch
+import tqdm
 
 import config
 import environment  # noqa
@@ -27,7 +28,9 @@ def train():
     steps_ = 0
     prev_action = collections.deque([torch.zeros(env.action_space.shape, dtype=torch.int) for _ in range(config.action_hist)], maxlen=config.action_hist)
 
+    pbar = tqdm.tqdm(total=config.num_steps)
     while total_steps < config.num_env_steps:
+        pbar.update(1)
         obs = env.reset()
         obs_token = agent.model.env_encode(obs)
         done = False
