@@ -1,5 +1,4 @@
 general:
-  discount_gamma: 0.5
   random_seed: 42
   use_cuda: True  # disable this when running on machine without cuda
 

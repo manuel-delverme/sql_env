@@ -26,7 +26,8 @@ class CustomAgent:
         np.random.seed(self.config['general']['random_seed'])
         torch.manual_seed(self.config['general']['random_seed'])
         self.device = config.device
-        self.model = LSTM_DQN(self.action_vocab, self.env_vocab, self.device, action_space.sequence_length)
+        # 1 + output_length  # 1 from the env, rest previous action
+        self.model = LSTM_DQN(self.action_vocab, self.env_vocab, self.device, observation_space.sequence_length, action_space.sequence_length)
 
         self.experiment_tag = self.config['checkpoint']['experiment_tag']
         self.model_checkpoint_path = self.config['checkpoint']['model_checkpoint_path']
@@ -53,7 +54,7 @@ class CustomAgent:
         self.update_per_k_game_steps = self.config['general']['update_per_k_game_steps']
         self.clip_grad_norm = self.config['training']['optimizer']['clip_grad_norm']
 
-        self.discount_gamma = self.config['general']['discount_gamma']
+        self.discount_gamma = config.gamma
         self.current_episode = 0
         self._epsiode_has_started = False
         self.best_avg_score_so_far = 0.0

@@ -1,3 +1,5 @@
+import collections
+
 import torch
 
 import config
@@ -14,14 +16,15 @@ def train():
     env = ppo.envs.make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir, config.device, False)
 
     # This is a hack but the experiment defines it's own action space
-    env.action_space = environment.sql_env.TextSpace(ppo.model.get_output_vocab(), env.action_space.sequence_length)
-    env.observation_space = environment.sql_env.TextSpace(env.observation_space.vocab + env.action_space.vocab, env.observation_space.sequence_length + env.action_space.sequence_length)
+    env.action_space = environment.sql_env.TextSpace(ppo.model.get_output_vocab(), env.action_space.sequence_length, (1, env.action_space.sequence_length))
+    obs_len = env.observation_space.sequence_length + env.action_space.sequence_length * config.action_hist
+    env.observation_space = environment.sql_env.TextSpace(env.observation_space.vocab + env.action_space.vocab, obs_len, (1, obs_len))
 
     agent = CustomAgent(config_file_name, env.observation_space, env.action_space)
 
     total_steps = 0
     steps_ = 0
-    prev_action = torch.zeros(env.action_space.shape, dtype=torch.int)
+    prev_action = collections.deque([torch.zeros(env.action_space.shape, dtype=torch.int) for _ in range(config.action_hist)], maxlen=config.action_hist)
 
     while total_steps < config.num_env_steps:
         obs = env.reset()
@@ -32,8 +35,8 @@ def train():
         episode_reward = 0
         agent.current_step = 0
 
+        hist_token = torch.cat((obs_token.squeeze(2), *prev_action), dim=1)
         while not done:
-            hist_token = torch.cat((obs_token.squeeze(2), prev_action), dim=1)
             actions = agent.act(hist_token.unsqueeze(-1))
             queries = idx_to_str(agent, actions)
 
@@ -57,10 +60,11 @@ def train():
 
             next_obs_token = agent.model.env_encode(next_obs)
             del next_obs
-            agent.replay_memory.add(hist_token, next_obs_token, actions, rewards, dones, infos)
+            prev_action.append(actions)
+            next_hist_token = torch.cat((next_obs_token.squeeze(2), *prev_action), dim=1)
 
-            prev_action = actions
-            obs_token = next_obs_token
+            agent.replay_memory.add(hist_token, next_hist_token, actions, rewards, dones, infos)
+            hist_token = next_hist_token
 
         agent.current_episode += 1
         if agent.current_episode < agent.epsilon_anneal_episodes:
@@ -85,7 +89,8 @@ def idx_to_str(agent, actions):
 if __name__ == '__main__':
     experiment_buddy.register_defaults(vars(config))
     PROC_NUM = 1
-    HOST = "mila" if config.user == "esac" else ""
-    YAML_FILE = "env_suite.yml"
+    # HOST = "mila" if config.user == "esac" else ""
+    HOST = ""
+    YAML_FILE = ""  # "env_suite.yml"
     tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM, wandb_kwargs={"mode": "disabled" if config.DEBUG else "online", "entity": "rl-sql"})
     train()

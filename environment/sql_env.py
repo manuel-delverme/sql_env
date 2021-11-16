@@ -14,7 +14,7 @@ from strsimpy.normalized_levenshtein import NormalizedLevenshtein
 
 
 class TextSpace(gym.spaces.Space):
-    def __init__(self, vocab, length=None):
+    def __init__(self, vocab, sequence_length, shape):
         self.vocab = vocab
 
         if vocab is None:
@@ -23,12 +23,13 @@ class TextSpace(gym.spaces.Space):
             self.vocab = sorted(vocab)
             self.vocab_length = len(vocab)
 
-        if length is None:
-            self.sequence_length = 1
-            shape = (1,)
-        else:
-            self.sequence_length = length
-            shape = (1, length)
+        self.sequence_length = sequence_length
+        # if length is None:
+        #     self.sequence_length = 1
+        #     shape = (1,)
+        # else:
+        #     self.sequence_length = length
+        #     shape = (1, length)
         super().__init__(shape=shape, dtype=np.object_)
 
     def contains(self, x):
@@ -60,28 +61,32 @@ class SQLEnv(gym.Env):
             # "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
             # 'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
             # *"SELECTs to the left and right of UNION do not have the same number of result columns".split(),
-            # "columns1",
-            # "columns2",
-            # "columns3",
-            "columns",
+            "columns1",
+            "columns2",
+            "columns3",
+            # "columns",
             # *"Incorrect number of bindings supplied".split(),
             # *"no such table".split(),
             "success",
             "UNK",
-            # "syntax error",
+            "syntax_error",
+            "firstname",
+            "nationality",
+            "age",
         }
 
-        self.observation_space = TextSpace(output_vocab)
+        self.observation_space = TextSpace(output_vocab, 2, (1, ))
 
         self.target_query_length = config.complexity + self.max_columns - 1
         assert self.target_query_length > 1, "lvl1 is bugged"
 
-        self.action_space = TextSpace(None, self.target_query_length)
+        self.action_space = TextSpace(None, self.target_query_length, (1, self.target_query_length))
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
 
         self.query_template = None
+        self.hidden_parameter = None
         self.reset()
 
     def step(self, user_query: str):
@@ -112,8 +117,8 @@ class SQLEnv(gym.Env):
         # reward += 0.1 * similarity
 
         if ": syntax error" in content and "near " in content:
-            content = "syntax error"
-            content = "UNK"
+            content = "syntax_error"
+            # content = "UNK"
 
         elif "no such column" in content:
             content = "no such column"
@@ -129,8 +134,8 @@ class SQLEnv(gym.Env):
 
         elif "SELECTs to the left and right of UNION do not have the same number of result columns" in content:
             query_columns = user_query.split(" FROM ")[0].count(',') + 1
-            # content = f"columns{query_columns}"
-            content = f"columns"
+            content = f"columns{query_columns}"
+            # content = f"columns"
             # content = "UNK"
 
         elif "incomplete input" in content:
@@ -151,7 +156,8 @@ class SQLEnv(gym.Env):
                 print("returns: ", content)
             content = "UNK"
 
-        return content, reward, terminal, {
+        response = " ".join([self.hidden_parameter.split("=")[0], content])
+        return response, reward, terminal, {
             'similarity': similarity,
             'columns': self.query_template.split(" FROM ")[0].count(','),
             'template': self.query_template,
@@ -197,13 +203,11 @@ class SQLEnv(gym.Env):
     def reset(self):
         columns = np.random.randint(1, self.max_columns + 1)
         selected_columns = ", ".join(constants.columns[:columns])
-        hidden_parameter = np.random.choice([
-            # "firstname='{input}'",
-            # "nationality=\"{input}\"",
+        self.hidden_parameter = np.random.choice([
+            "firstname='{input}'",
+            "nationality=\"{input}\"",
             "age={input}",
         ])
-        import warnings
-        warnings.warn("only 1 hidden parameter")
-        self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
+        self.query_template = f"SELECT {selected_columns} FROM users WHERE {self.hidden_parameter}"
         state, _, _, _ = self.step("--")
         return state

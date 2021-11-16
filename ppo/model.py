@@ -51,8 +51,8 @@ def get_output_vocab():
     output_vocab = sorted(set(voc).union({
         COST_STR,
         " 1 ",  # escape for int
-        # " ' ",  # escape for '
-        # " \" ",  # escape for "
+        " ' ",  # escape for '
+        " \" ",  # escape for "
         # "",
     }))
     import warnings

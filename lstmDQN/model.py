@@ -15,7 +15,7 @@ def _text_to_token_idx(batch_response, table):
             assert content
             content = content.strip().split()
             sentence_idxs = torch.cat([table[word] for word in content])
-            assert len(content) == 1, "variable length content not handled, will required EOS token."
+            assert len(content) == 2, "variable length content not handled, will required EOS token."
             tokens.append(sentence_idxs)
     assert len(tokens) == len(batch_response)
     tokens = torch.stack(tokens).unsqueeze(-1)  # batch x time x 1
@@ -25,7 +25,7 @@ def _text_to_token_idx(batch_response, table):
 class LSTM_DQN(torch.nn.Module):
     batch_size = 1
 
-    def __init__(self, agent_vocab, env_vocab, device, output_length: int):
+    def __init__(self, agent_vocab, env_vocab, device, input_length: int, output_length: int):
         super(LSTM_DQN, self).__init__()
         self.device = device
         self.agent_vocab_size = len(agent_vocab)
@@ -36,7 +36,7 @@ class LSTM_DQN(torch.nn.Module):
         self.encoder_rnn_hidden_size = config.encoder_rnn_hidden_size
         self.action_scorer_hidden_dim = config.action_scorer_hidden_dim
 
-        self.seq_input_len = 1 + output_length  # 1 from the env, rest previous action
+        self.seq_input_len = input_length
 
         self.word_embedding = torch.nn.Embedding(self.env_vocab_size, self.embedding_size, device=self.device)
         self.encoder = torch.nn.GRU(self.embedding_size, self.encoder_rnn_hidden_size, batch_first=True)
