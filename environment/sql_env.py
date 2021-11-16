@@ -58,10 +58,11 @@ class SQLEnv(gym.Env):
         data = []
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
         task_keywords = [
-            "age",
-            "firstname",
-            "nationality",
-        ]
+                            "age",
+                            "firstname",
+                            "nationality",
+                        ][:config.num_tasks]
+        task_keywords = [str(s) for s in range(config.max_columns)]
         output_vocab = {
             # "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
             # 'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
@@ -75,7 +76,7 @@ class SQLEnv(gym.Env):
             "success",
             "UNK",
             # "syntax_error",
-            *task_keywords[:config.num_tasks],
+            *task_keywords,
         }
 
         self.observation_space = TextSpace(output_vocab, 2, (1,))
@@ -160,7 +161,8 @@ class SQLEnv(gym.Env):
                 print("returns: ", content)
             content = "UNK"
 
-        response = " ".join([self.hidden_parameter.split("=")[0], content])
+        # response = " ".join([self.hidden_parameter.split("=")[0], content])
+        response = " ".join([str(self.selected_columns), content])
         return response, reward, terminal, {
             'similarity': similarity,
             'columns': self.query_template.split(" FROM ")[0].count(','),
@@ -206,8 +208,8 @@ class SQLEnv(gym.Env):
 
     def reset(self):
         columns = np.random.randint(1, self.max_columns + 1)
+        self.selected_columns = columns - 1
         selected_columns = ", ".join(constants.columns[:columns])
-        self.selected_columns = selected_columns
         self.hidden_parameter = np.random.choice([
                                                      "age={input}",
                                                      # "firstname='{input}'",

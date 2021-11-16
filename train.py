@@ -75,7 +75,7 @@ def train():
             steps_ = episode_length
         steps_ = 0.9 * steps_ + 0.1 * episode_length
 
-        print(f"Steps %: {total_steps / config.num_env_steps} | {episode_reward.item():2.1f} pts | {episode_length:4.1f}({steps_:.1f}) steps")
+        pbar.set_description(f"{episode_reward.item():2.1f} pts | {episode_length:4.1f}({steps_:.1f}) steps")
 
 
 def idx_to_str(agent, actions):
