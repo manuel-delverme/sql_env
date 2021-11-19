@@ -47,7 +47,7 @@ def main():
 
         for rollout_step in range(config.num_steps):
             with torch.no_grad():
-                value, batch_queries, action_log_prob = actor_critic.act(rollouts.obs[rollout_step])
+                value, batch_queries, action_log_prob = actor_critic.eps_greedy(rollouts.obs[rollout_step])
             running_logprobs += action_log_prob[0]
 
             queries = ["".join(query) for query in batch_queries]

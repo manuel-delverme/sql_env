@@ -51,7 +51,7 @@ if args.env_name.find('Bullet') > -1:
 
 while True:
     with torch.no_grad():
-        value, action, _, recurrent_hidden_states = actor_critic.act(
+        value, action, _, recurrent_hidden_states = actor_critic.eps_greedy(
             obs, recurrent_hidden_states, masks, deterministic=args.det)
 
     # Obser reward and next obs

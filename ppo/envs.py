@@ -28,6 +28,7 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     def _thunk():
         env = gym.make(env_id)
         env.seed(seed + rank)
+
         return env
 
     return _thunk
