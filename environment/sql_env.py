@@ -163,7 +163,7 @@ class SQLEnv(gym.Env):
 
         response = content
         if config.cheat_hidden_parameter:
-            response = " ".join([self.hidden_parameter.split("=")[0], response])
+            response = " ".join([self.hidden_parameter, response])
         if config.cheat_columns:
             response = " ".join([str(self.selected_columns), response])
 
@@ -214,11 +214,14 @@ class SQLEnv(gym.Env):
         columns = np.random.randint(1, self.max_columns + 1)
         self.selected_columns = columns - 1
         selected_columns = ", ".join(constants.columns[:columns])
-        self.hidden_parameter = np.random.choice([
-                                                     "age={input}",
-                                                     # "firstname='{input}'",
-                                                     # "nationality=\"{input}\"",
-                                                 ][:config.num_tasks])
-        self.query_template = f"SELECT {selected_columns} FROM users WHERE {self.hidden_parameter}"
+        hidden_parameter = np.random.choice(
+            [
+                "age={input}",
+                "firstname='{input}'",
+                "nationality=\"{input}\"",
+            ][:config.num_tasks]
+        )
+        self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
+        self.hidden_parameter = hidden_parameter.split("=")
         state, _, _, _ = self.step("--")
         return state

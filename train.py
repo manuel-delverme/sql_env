@@ -26,17 +26,16 @@ def train(tb):
 
     agent = FixedLengthAgent(env.observation_space, env.action_space, config.device)
     agent.model.train()
-    processed_env = environment.wrappers.WordLevelPreprocessing(env, config.action_history_len, config.device)
-
-    env_steps = 0
+    env = environment.wrappers.WordLevelPreprocessing(env, config.action_history_len, config.device)
 
     pbar = tqdm.tqdm(total=config.num_env_steps)
+    env_steps = 0
     num_episodes = 0
 
     while env_steps < config.num_env_steps:
         pbar.update(1)
 
-        obs = processed_env.reset()
+        obs = env.reset()
 
         done = False
         episode_length = 0
@@ -49,7 +48,7 @@ def train(tb):
             episode_loss += agent.update(config.gamma)
 
             # queries = processed_env.action_decode(actions)
-            next_obs, rewards, dones, infos = processed_env.step(actions)
+            next_obs, rewards, dones, infos = env.step(actions)
             done, = dones
 
             env_steps += 1
@@ -66,6 +65,9 @@ def train(tb):
         tb.add_scalar('train/episode_reward', episode_reward, env_steps)
         tb.add_scalar('train/episode_length', episode_length, env_steps)
         tb.add_scalar('train/episode_loss', episode_loss / episode_length, env_steps)
+
+        sql_env = env.env.envs[0].env
+        tb.add_scalar(f'train/task_{sql_env.hidden_parameter}_{sql_env.selected_columns}', episode_length, env_steps)
 
 
 if __name__ == '__main__':
