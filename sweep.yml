@@ -8,50 +8,44 @@ parameters:
     distribution: log_uniform
     min: -7.76804212
     max: -4.76804212
-
-^replay_batch_size:
-  distribution: categorical
-  values:
-    - 32
-    - 64
-    - 128
-    - 256
-    - 1024
-    - 2048
-    - 4096
-
-^embedding_size:
-  distribution: categorical
-  values:
-    - 32
-    - 64
-    - 128
-    - 256
-
-^encoder_rnn_hidden_size:
-  distribution: categorical
-  values:
-    - 64
-    - 128
-    - 256
-    - 1024
-
-^action_socrer_hidden_dim:
-  distribution: categorical
-  values:
-    - 64
-    - 128
-    - 256
-
-^update_per_k_game_steps:
-  distribution: q_uniform
-  min: 1
-  max: 10
-  q: 1
-
-^epsilon_anneal_episodes:
-  distribution: q_uniform
-  min: 1000
-  max: 1000000
-  q: 1000
+  ^replay_batch_size:
+    distribution: categorical
+    values:
+      - 32
+      - 64
+      - 128
+      - 256
+      - 1024
+      - 2048
+      - 4096
+  ^embedding_size:
+    distribution: categorical
+    values:
+      - 32
+      - 64
+      - 128
+      - 256
+  ^encoder_rnn_hidden_size:
+    distribution: categorical
+    values:
+      - 64
+      - 128
+      - 256
+      - 1024
+  ^action_socrer_hidden_dim:
+    distribution: categorical
+    values:
+      - 64
+      - 128
+      - 256
+  ^update_per_k_game_steps:
+    distribution: q_uniform
+    min: 1
+    max: 10
+    q: 1
+  ^epsilon_anneal_episodes:
+    distribution: q_uniform
+    min: 1000
+    max: 1000000
+    q: 1000
 program: train.py
