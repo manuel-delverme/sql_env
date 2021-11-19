@@ -12,24 +12,30 @@ class FixedLengthAgent:
     def __init__(self, observation_space, action_space, device):
         self.device = device
 
-        self.model = LSTMDQN(len(observation_space.vocab), len(action_space.vocab), self.device, observation_space.sequence_length, action_space.sequence_length)
+        self.model = LSTMDQN(
+            len(observation_space.vocab), len(action_space.vocab), self.device, action_space.sequence_length,
+            config.embedding_size, config.encoder_rnn_hidden_size, config.action_scorer_hidden_dim,
+        )
+
+        # obs_vocab_size, action_vocab_size, device, output_length: int,
+        # embedding_size, encoder_rnn_hidden_size, action_scorer_hidden_dim, ):
         self.model.to(self.device)
 
-        self.replay_batch_size = config.general.replay_batch_size
+        self.replay_batch_size = config.replay_batch_size
         self.replay_memory = ReplayBuffer(
             config.buffer_size,
             gym.spaces.MultiDiscrete(np.ones(observation_space.sequence_length) * observation_space.vocab_length),
             gym.spaces.MultiDiscrete(np.ones(action_space.sequence_length) * action_space.vocab_length)
         )
 
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.optimizer.learning_rate)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)
 
-        self.epsilon_anneal_episodes = config.general.epsilon_anneal_episodes
-        self.epsilon_anneal_from = config.general.epsilon_anneal_from
-        self.epsilon_anneal_to = config.general.epsilon_anneal_to
+        self.epsilon_anneal_episodes = config.epsilon_anneal_episodes
+        self.epsilon_anneal_from = config.epsilon_anneal_from
+        self.epsilon_anneal_to = config.epsilon_anneal_to
         self.epsilon = self.epsilon_anneal_from
 
-        self.clip_grad_norm = config.optimizer.clip_grad_norm
+        self.clip_grad_norm = config.clip_grad_norm
 
     # def get_Q(self, token_idx):
     #     raise NotImplemented

@@ -24,7 +24,7 @@ except ImportError:
     pass
 
 
-def make_env(env_id, seed, rank, log_dir, allow_early_resets):
+def make_env(env_id, seed, rank):
     def _thunk():
         env = gym.make(env_id)
         env.seed(seed + rank)
@@ -34,8 +34,8 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets):
     return _thunk
 
 
-def make_vec_envs(env_name, seed, num_processes, gamma, log_dir, device, allow_early_resets, num_frame_stack=None):
-    envs = [make_env(env_name, seed, i, log_dir, allow_early_resets) for i in range(num_processes)]
+def make_vec_envs(env_name, seed, num_processes, device, num_frame_stack=None):
+    envs = [make_env(env_name, seed, i) for i in range(num_processes)]
 
     if len(envs) > 1:
         envs = SubprocVecEnv(envs)

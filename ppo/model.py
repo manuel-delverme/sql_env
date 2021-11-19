@@ -50,16 +50,15 @@ def get_output_vocab():
         raise NotImplementedError(f"Complexity {config.complexity} is not implemented.")
 
     escapes = [
-        " 1 ",  # escape for int
-        " ' ",  # escape for '
-        " \" ",  # escape for "
-    ][:config.num_tasks]
+                  " 1 ",  # escape for int
+                  " ' ",  # escape for '
+                  " \" ",  # escape for "
+              ][:config.num_tasks]
     output_vocab = sorted(set(voc).union({
         COST_STR,
         *escapes,
         # "",
     }))
-
 
     return output_vocab
 

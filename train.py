@@ -12,12 +12,12 @@ import ppo.model
 from lstmDQN.custom_agent import FixedLengthAgent
 
 # Set the random seed manually for reproducibility.
-np.random.seed(config.general.random_seed)
-torch.manual_seed(config.general.random_seed)
+np.random.seed(config.seed)
+torch.manual_seed(config.seed)
 
 
 def train(tb):
-    env = ppo.envs.make_vec_envs(config.env_name, config.seed, config.num_processes, config.gamma, config.log_dir, config.device, False)
+    env = ppo.envs.make_vec_envs(config.env_name, config.seed, config.num_processes, device=config.device)
 
     # This is a hack but the experiment defines it's own action space
     env.action_space = environment.sql_env.TextSpace(ppo.model.get_output_vocab(), env.action_space.sequence_length, (1, env.action_space.sequence_length))
@@ -58,7 +58,7 @@ def train(tb):
             agent.replay_memory.add(obs, next_obs, actions, rewards, dones, infos)
             obs = next_obs
 
-        if num_episodes < agent.epsilon_anneal_episodes:
+        if num_episodes < agent.epsilon_anneal_episodes and agent.epsilon > agent.epsilon_anneal_to:
             agent.epsilon -= (agent.epsilon_anneal_from - agent.epsilon_anneal_to) / float(agent.epsilon_anneal_episodes)
 
         tb.add_scalar('train/epsilon', agent.epsilon, env_steps)
@@ -75,6 +75,6 @@ if __name__ == '__main__':
     PROC_NUM = 1
     # HOST = "mila" if config.user == "esac" else ""
     HOST = ""
-    YAML_FILE = ""  # "env_suite.yml"
+    YAML_FILE = ""  # "sweep.yml"  # "env_suite.yml"
     tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM, wandb_kwargs={"mode": "disabled" if config.DEBUG else "online", "entity": "rl-sql"})
     train(tb)

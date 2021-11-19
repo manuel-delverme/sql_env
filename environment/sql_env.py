@@ -4,13 +4,12 @@ import sqlite3
 
 import gym.envs
 import numpy as np
-import torch.distributions
 
 import config
 import constants
 
-torch.manual_seed(1)
-from strsimpy.normalized_levenshtein import NormalizedLevenshtein
+
+# from strsimpy.normalized_levenshtein import NormalizedLevenshtein
 
 
 class TextSpace(gym.spaces.Space):
@@ -40,7 +39,7 @@ class TextSpace(gym.spaces.Space):
 
 
 class SQLEnv(gym.Env):
-    normalized_levenshtein = NormalizedLevenshtein()
+    # normalized_levenshtein = NormalizedLevenshtein()
 
     def render(self, mode='human'):
         pass
@@ -118,9 +117,6 @@ class SQLEnv(gym.Env):
             reward = 1.
             terminal = True
 
-        similarity = self.normalized_levenshtein.similarity(user_query, " ".join(solution))
-        # reward += 0.1 * similarity
-
         if ": syntax error" in content and "near " in content:
             # content = "syntax_error"
             content = "UNK"
@@ -168,7 +164,6 @@ class SQLEnv(gym.Env):
             response = " ".join([str(self.selected_columns), response])
 
         return response, reward, terminal, {
-            'similarity': similarity,
             'columns': self.query_template.split(" FROM ")[0].count(','),
             'template': self.query_template,
             'solved': found_flag,
@@ -190,12 +185,6 @@ class SQLEnv(gym.Env):
             content += str(ex)
             http_code = http.client.INTERNAL_SERVER_ERROR
         return content, found_flag
-
-    def get_similarity(self, input_query, solution):
-        similarity = 0
-        for i, s in zip(input_query.split(), solution[:-self.target_query_length]):
-            similarity += float(i.strip() == s.strip()) / self.target_query_length
-        return similarity / self.target_query_length
 
     def get_solution(self, input_query):
         cols = self.query_template.split(" FROM ")[0].count(',')
@@ -222,6 +211,6 @@ class SQLEnv(gym.Env):
             ][:config.num_tasks]
         )
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
-        self.hidden_parameter = hidden_parameter.split("=")
+        self.hidden_parameter = hidden_parameter.split("=")[0]
         state, _, _, _ = self.step("--")
         return state
