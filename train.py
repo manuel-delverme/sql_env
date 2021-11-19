@@ -26,7 +26,7 @@ def train(tb):
 
     agent = FixedLengthAgent(env.observation_space, env.action_space, config.device)
     agent.model.train()
-    env = environment.wrappers.WordLevelPreprocessing(env, config.action_history_len, config.device)
+    env = environment.wrappers.WordLevelPreprocessing(env, config.action_history_len)
 
     pbar = tqdm.tqdm(total=config.num_env_steps)
     env_steps = 0
@@ -43,7 +43,7 @@ def train(tb):
         episode_loss = 0
 
         while not done:
-            actions = agent.eps_greedy(obs.unsqueeze(-1))
+            actions = agent.eps_greedy(obs.to(config.device).unsqueeze(-1))
 
             episode_loss += agent.update(config.gamma)
 
@@ -55,7 +55,7 @@ def train(tb):
             episode_length += 1
             episode_reward += rewards
 
-            agent.replay_memory.add(obs, next_obs, actions, rewards, dones, infos)
+            agent.replay_memory.add(obs, next_obs, actions.cpu(), rewards, dones, infos)
             obs = next_obs
 
         if num_episodes < agent.epsilon_anneal_episodes and agent.epsilon > agent.epsilon_anneal_to:

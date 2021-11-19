@@ -12,6 +12,8 @@ class FixedLengthAgent:
     def __init__(self, observation_space, action_space, device):
         self.device = device
 
+        self.action_vocab_size = len(action_space.vocab)
+
         self.model = LSTMDQN(
             len(observation_space.vocab), len(action_space.vocab), self.device, action_space.sequence_length,
             config.embedding_size, config.encoder_rnn_hidden_size, config.action_scorer_hidden_dim,
@@ -49,7 +51,7 @@ class FixedLengthAgent:
         # random number for epsilon greedy
         actions = sequence_Q.max(dim=2).indices
         rand_num = np.random.uniform(low=0.0, high=1.0, size=(token_batch.shape[0]))
-        rand_idx = torch.randint(0, self.model.action_vocab_size, size=actions.shape)
+        rand_idx = torch.randint_like(actions, 0, self.action_vocab_size)
         actions[rand_num < self.epsilon, :] = rand_idx[rand_num < self.epsilon, :]
         return actions
 
@@ -58,27 +60,31 @@ class FixedLengthAgent:
             return float("nan")
 
         batch = self.replay_memory.sample(self.replay_batch_size)
+        observations = torch.tensor(batch.observations, device=self.model.device)
+        next_observations = torch.tensor(batch.next_observations, device=self.model.device)
+        actions = torch.tensor(batch.actions, device=self.model.device)
+        rewards = torch.tensor(batch.rewards, device=self.model.device)
+        dones = torch.tensor(batch.dones, device=self.model.device)
 
-        current_repr = self.model.representation_generator(batch.observations.unsqueeze(-1))  # list of batch x input_length x num_vocab
+        current_repr = self.model.representation_generator(observations.unsqueeze(-1))  # list of batch x input_length x num_vocab
         q_values = self.model.output_qvalues(current_repr)
 
         word_qvalues = []
-        for ith_word_Q, idx in zip(q_values, batch.actions):
+        for ith_word_Q, idx in zip(q_values, actions):
             Qw = ith_word_Q.gather(1, idx.unsqueeze(1))
             word_qvalues.append(Qw)
 
         q_value = torch.stack(word_qvalues, 0).mean(1)  # Mean across actions.
 
         with torch.no_grad():
-            next_repr = self.model.representation_generator(batch.next_observations.unsqueeze(-1))
+            next_repr = self.model.representation_generator(next_observations.unsqueeze(-1))
             next_server_reponse_Q = self.model.output_qvalues(next_repr)
 
             next_word_qvalues = next_server_reponse_Q.max(dim=-1).values
             next_q_value = torch.mean(next_word_qvalues, 1)
             next_q_value = next_q_value.detach().unsqueeze(-1)
 
-        rewards = batch.rewards
-        not_done = 1. - batch.dones
+        not_done = 1. - dones
         values = rewards + not_done * next_q_value * discount
 
         mask = torch.ones_like(values)  # Not used yet.

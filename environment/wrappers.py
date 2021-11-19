@@ -19,18 +19,19 @@ def _text_to_token_idx(batch_response, table):
 
 
 class WordLevelPreprocessing:
-    def __init__(self, env, action_history, device):
+    def __init__(self, env, action_history):
         self.env = env
 
         obs_space, action_space = env.observation_space, env.action_space
 
         self.obs_vocab = obs_space.vocab
-        self.env_reverse_vocab = {word: torch.tensor([idx], device=device) for idx, word in enumerate(self.obs_vocab)}
+        self.env_reverse_vocab = {word: torch.tensor([idx], device="cpu") for idx, word in enumerate(self.obs_vocab)}
 
         self.action_vocab = action_space.vocab
-        self.action_reverse_vocab = {word: torch.tensor([idx], device=device) for idx, word in enumerate(self.action_vocab)}
+        self.action_reverse_vocab = {word: torch.tensor([idx], device="cpu") for idx, word in enumerate(self.action_vocab)}
 
-        self.action_history = collections.deque([torch.zeros(action_space.shape, dtype=torch.int) for _ in range(action_history)], maxlen=action_history)
+        self.action_history = collections.deque(
+            [torch.zeros(action_space.shape, dtype=torch.int, device="cpu") for _ in range(action_history)], maxlen=action_history)
 
     def _agent_encode(self, batch_response):
         return _text_to_token_idx(batch_response, self.action_reverse_vocab)
@@ -46,7 +47,7 @@ class WordLevelPreprocessing:
         raise NotImplemented
 
     def step(self, action):
-        self.action_history.append(action)
+        self.action_history.append(action.cpu())
 
         queries = self._action_decode(action)
         next_obs, rewards, dones, infos = self.env.step(queries)
