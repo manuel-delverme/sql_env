@@ -3,4 +3,4 @@ numpy
 gym
 stable-baselines3
 icecream
-git+https://github.com/ministry-of-silly-code/experiment_buddy.git@main#egg=experiment_buddy
+experiment_buddy

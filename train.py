@@ -72,9 +72,10 @@ def train(tb):
 
 if __name__ == '__main__':
     experiment_buddy.register_defaults(vars(config))
-    PROC_NUM = 1
+    PROC_NUM = 10
     # HOST = "mila" if config.user == "esac" else ""
-    HOST = ""
-    YAML_FILE = ""  # "sweep.yml"  # "env_suite.yml"
-    tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM, wandb_kwargs={"mode": "disabled" if config.DEBUG else "online", "entity": "rl-sql"})
+    HOST = "mila"
+    RUN_SWEEP = True
+    tb = experiment_buddy.deploy(host=HOST, sweep_yaml="sweep.yml" if RUN_SWEEP else "", proc_num=PROC_NUM,
+                                 wandb_kwargs={"mode": "disabled" if config.DEBUG else "online", "entity": "rl-sql"})
     train(tb)
