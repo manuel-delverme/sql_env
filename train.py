@@ -1,3 +1,5 @@
+import collections
+
 import numpy as np
 import torch
 import tqdm
@@ -31,11 +33,14 @@ def train(tb):
     pbar = tqdm.tqdm(total=config.num_env_steps)
     env_steps = 0
     num_episodes = 0
+    task_performance = collections.defaultdict(lambda: collections.deque(maxlen=100))
+    avg_task_performance = collections.deque(maxlen=100)
 
     while env_steps < config.num_env_steps:
         pbar.update(1)
 
         obs = env.reset()
+        sql_env = env.env.envs[0].env
 
         done = False
         episode_length = 0
@@ -61,20 +66,24 @@ def train(tb):
         if num_episodes < agent.epsilon_anneal_episodes and agent.epsilon > agent.epsilon_anneal_to:
             agent.epsilon -= (agent.epsilon_anneal_from - agent.epsilon_anneal_to) / float(agent.epsilon_anneal_episodes)
 
+        task_performance[sql_env.hidden_parameter, sql_env.selected_columns].append(episode_length)
+        avg_task_performance.append(episode_length)
+
         tb.add_scalar('train/epsilon', agent.epsilon, env_steps)
         tb.add_scalar('train/episode_reward', episode_reward, env_steps)
         tb.add_scalar('train/episode_length', episode_length, env_steps)
         tb.add_scalar('train/episode_loss', episode_loss / episode_length, env_steps)
+        tb.add_scalar('train/avg_episode_length', np.mean(avg_task_performance), env_steps)
 
-        sql_env = env.env.envs[0].env
-        tb.add_scalar(f'train/task_{sql_env.hidden_parameter}_{sql_env.selected_columns}', episode_length, env_steps)
+        tb.add_scalar(f'train/task_{sql_env.hidden_parameter}_{sql_env.selected_columns}', np.mean(task_performance[sql_env.hidden_parameter, sql_env.selected_columns]), env_steps)
 
 
 if __name__ == '__main__':
     experiment_buddy.register_defaults(vars(config))
-    PROC_NUM = 1
+    PROC_NUM = 10
     # HOST = "mila" if config.user == "esac" else ""
-    HOST = ""
-    YAML_FILE = ""  # "sweep.yml"  # "env_suite.yml"
-    tb = experiment_buddy.deploy(host=HOST, sweep_yaml=YAML_FILE, proc_num=PROC_NUM, wandb_kwargs={"mode": "disabled" if config.DEBUG else "online", "entity": "rl-sql"})
+    HOST = "mila"
+    RUN_SWEEP = True
+    tb = experiment_buddy.deploy(host=HOST, sweep_yaml="sweep.yml" if RUN_SWEEP else "", proc_num=PROC_NUM,
+                                 wandb_kwargs={"mode": "disabled" if config.DEBUG else "online", "entity": "rl-sql"})
     train(tb)

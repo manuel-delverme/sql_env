@@ -14,10 +14,8 @@ class FixedLengthAgent:
 
         self.action_vocab_size = len(action_space.vocab)
 
-        self.model = LSTMDQN(
-            len(observation_space.vocab), len(action_space.vocab), self.device, action_space.sequence_length,
-            config.embedding_size, config.encoder_rnn_hidden_size, config.action_scorer_hidden_dim,
-        )
+        self.model = LSTMDQN(len(observation_space.vocab), len(action_space.vocab), action_space.sequence_length, config.embedding_size, config.encoder_rnn_hidden_size,
+                             config.action_scorer_hidden_dim, )
 
         # obs_vocab_size, action_vocab_size, device, output_length: int,
         # embedding_size, encoder_rnn_hidden_size, action_scorer_hidden_dim, ):
