@@ -40,6 +40,8 @@ encoder_rnn_hidden_size = 192
 action_scorer_hidden_dim = 128
 DEBUG = sys.gettrace() is not None
 
-action_hist = 2
-num_tasks = 1
+action_hist = 7
+num_tasks = 3
 max_columns = 3  # 3
+cheat_hidden_parameter = False
+cheat_columns = False

@@ -62,7 +62,7 @@ class SQLEnv(gym.Env):
                             "firstname",
                             "nationality",
                         ][:config.num_tasks]
-        task_keywords = [str(s) for s in range(config.max_columns)]
+        # task_keywords = [str(s) for s in range(config.max_columns)]
         output_vocab = {
             # "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
             # 'You', 'can', 'only', 'execute', 'one', 'statement', 'at', 'a', 'time.',
@@ -79,7 +79,7 @@ class SQLEnv(gym.Env):
             *task_keywords,
         }
 
-        self.observation_space = TextSpace(output_vocab, 2, (1,))
+        self.observation_space = TextSpace(output_vocab, (1 + config.cheat_columns + config.cheat_hidden_parameter), (1,))
 
         self.target_query_length = config.complexity + self.max_columns - 1
         assert self.target_query_length > 1, "lvl1 is bugged"
@@ -161,8 +161,12 @@ class SQLEnv(gym.Env):
                 print("returns: ", content)
             content = "UNK"
 
-        # response = " ".join([self.hidden_parameter.split("=")[0], content])
-        response = " ".join([str(self.selected_columns), content])
+        response = content
+        if config.cheat_hidden_parameter:
+            response = " ".join([self.hidden_parameter.split("=")[0], response])
+        if config.cheat_columns:
+            response = " ".join([str(self.selected_columns), response])
+
         return response, reward, terminal, {
             'similarity': similarity,
             'columns': self.query_template.split(" FROM ")[0].count(','),
