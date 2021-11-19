@@ -27,7 +27,8 @@ class FixedLengthAgent:
         self.replay_memory = ReplayBuffer(
             config.buffer_size,
             gym.spaces.MultiDiscrete(np.ones(observation_space.sequence_length) * observation_space.vocab_length),
-            gym.spaces.MultiDiscrete(np.ones(action_space.sequence_length) * action_space.vocab_length)
+            gym.spaces.MultiDiscrete(np.ones(action_space.sequence_length) * action_space.vocab_length),
+            device=self.device,
         )
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)
@@ -60,32 +61,27 @@ class FixedLengthAgent:
             return float("nan")
 
         batch = self.replay_memory.sample(self.replay_batch_size)
-        observations = torch.tensor(batch.observations, device=self.model.device)
-        next_observations = torch.tensor(batch.next_observations, device=self.model.device)
-        actions = torch.tensor(batch.actions, device=self.model.device)
-        rewards = torch.tensor(batch.rewards, device=self.model.device)
-        dones = torch.tensor(batch.dones, device=self.model.device)
 
-        current_repr = self.model.representation_generator(observations.unsqueeze(-1))  # list of batch x input_length x num_vocab
+        current_repr = self.model.representation_generator(batch.observations.unsqueeze(-1))  # list of batch x input_length x num_vocab
         q_values = self.model.output_qvalues(current_repr)
 
         word_qvalues = []
-        for ith_word_Q, idx in zip(q_values, actions):
+        for ith_word_Q, idx in zip(q_values, batch.actions):
             Qw = ith_word_Q.gather(1, idx.unsqueeze(1))
             word_qvalues.append(Qw)
 
         q_value = torch.stack(word_qvalues, 0).mean(1)  # Mean across actions.
 
         with torch.no_grad():
-            next_repr = self.model.representation_generator(next_observations.unsqueeze(-1))
+            next_repr = self.model.representation_generator(batch.next_observations.unsqueeze(-1))
             next_server_reponse_Q = self.model.output_qvalues(next_repr)
 
             next_word_qvalues = next_server_reponse_Q.max(dim=-1).values
             next_q_value = torch.mean(next_word_qvalues, 1)
             next_q_value = next_q_value.detach().unsqueeze(-1)
 
-        not_done = 1. - dones
-        values = rewards + not_done * next_q_value * discount
+        not_done = 1. - batch.dones
+        values = batch.rewards + not_done * next_q_value * discount
 
         mask = torch.ones_like(values)  # Not used yet.
         loss = F.smooth_l1_loss(q_value * mask, values * mask)
