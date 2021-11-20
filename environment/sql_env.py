@@ -56,11 +56,15 @@ class SQLEnv(gym.Env):
 
         data = []
         # To tell the agent what kind of outputs it can expect (XXX so far this is not an exhaustive list)
-        task_keywords = [
-                            "age",
-                            "firstname",
-                            "nationality",
-                        ][:config.num_tasks]
+        cheat_keywords = []
+        if config.cheat_columns:
+            cheat_keywords += [str(s) for s in range(config.max_columns)]
+        if config.cheat_hidden_parameter:
+            cheat_keywords += [
+                "age",
+                "firstname",
+                "nationality",
+            ]
         # task_keywords = [str(s) for s in range(config.max_columns)]
         output_vocab = {
             # "near", "syntax", "error", "no", "such", "column", "incomplete", "input", "unrecognized", "token",
@@ -75,7 +79,7 @@ class SQLEnv(gym.Env):
             "success",
             "UNK",
             # "syntax_error",
-            *task_keywords,
+            *cheat_keywords,
         }
 
         self.observation_space = TextSpace(output_vocab, (1 + config.cheat_columns + config.cheat_hidden_parameter), (1,))

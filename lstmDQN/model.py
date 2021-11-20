@@ -4,13 +4,10 @@ import torch
 class LSTMDQN(torch.nn.Module):
     batch_size = 1
 
-    def __init__(
-            self, obs_vocab_size, action_vocab_size, device, output_length: int,
-            embedding_size, encoder_rnn_hidden_size, action_scorer_hidden_dim, ):
+    def __init__(self, obs_vocab_size, action_vocab_size, output_length: int, embedding_size, encoder_rnn_hidden_size, action_scorer_hidden_dim, ):
         super(LSTMDQN, self).__init__()
-        self.device = device
 
-        self.word_embedding = torch.nn.Embedding(obs_vocab_size, embedding_size, device=self.device)
+        self.word_embedding = torch.nn.Embedding(obs_vocab_size, embedding_size)
         self.encoder = torch.nn.GRU(embedding_size, encoder_rnn_hidden_size, batch_first=True)
         self.Q_features = torch.nn.Sequential(
             torch.nn.Linear(encoder_rnn_hidden_size, action_scorer_hidden_dim),
