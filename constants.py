@@ -12,3 +12,5 @@ USERS_XML = """
 
 
 columns = ["id", "username", "firstname", "surname", "age", "nationality", "created_at"]
+#Used only by the structured agent
+max_columns = 3
