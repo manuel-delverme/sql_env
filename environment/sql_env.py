@@ -11,6 +11,63 @@ import constants
 
 # from strsimpy.normalized_levenshtein import NormalizedLevenshtein
 
+def get_output_vocab():
+    if config.complexity == 3:
+        COST_STR = "a FROM p --"
+        voc = [
+            " UNION SELECT ",
+            " NULL, ",
+        ]
+    elif config.complexity == 4:
+        COST_STR = "FROM p --"
+        voc = [
+            " UNION SELECT ",
+            " NULL, ",
+            " a ",
+        ]
+    elif config.complexity == 5:
+        COST_STR = "p --"
+        voc = [
+            " UNION SELECT ",
+            " NULL, ",
+            " a ",
+            " FROM ",
+        ]
+    elif config.complexity == 6:
+        COST_STR = "--"
+        voc = [
+            " UNION SELECT ",
+            " NULL, ",
+            " a ",
+            " FROM ",
+            " p ",
+        ]
+    elif config.complexity == 7:
+        COST_STR = ""
+        voc = [
+            " UNION SELECT ",
+            " NULL, ",
+            " a ",
+            " FROM ",
+            " p ",
+            " -- ",
+        ]
+    else:
+        raise NotImplementedError(f"Complexity {config.complexity} is not implemented.")
+
+    escapes = [
+                  " 1 ",  # escape for int
+                  " ' ",  # escape for '
+                  " \" ",  # escape for "
+              ][:config.num_tasks]
+    output_vocab = sorted(set(voc).union({
+        COST_STR,
+        *escapes,
+        # "",
+    }))
+
+    return output_vocab
+
 
 class TextSpace(gym.spaces.Space):
     def __init__(self, vocab, sequence_length, shape):
@@ -81,13 +138,20 @@ class SQLEnv(gym.Env):
             # "syntax_error",
             *cheat_keywords,
         }
-
-        self.observation_space = TextSpace(output_vocab, (1 + config.cheat_columns + config.cheat_hidden_parameter), (1,))
+        # self.observation_space = TextSpace(output_vocab, (1 + config.cheat_columns + config.cheat_hidden_parameter), (1,))
+        self.output_vocab = list(sorted(output_vocab))
+        vocab, seq_len = (len(output_vocab), (1 + config.cheat_columns + config.cheat_hidden_parameter))
+        self.observation_space = gym.spaces.MultiDiscrete([vocab] * seq_len)
+        # self.observation_space = gym.spaces.Discrete([vocab] * seq_len)
 
         self.target_query_length = config.complexity + self.max_columns - 1
         assert self.target_query_length > 1, "lvl1 is bugged"
 
-        self.action_space = TextSpace(None, self.target_query_length, (1, self.target_query_length))
+        # self.action_space = TextSpace(None, self.target_query_length, (1, self.target_query_length))
+        self.action_vocab = get_output_vocab()
+
+        # self.action_space = gym.spaces.MultiDiscrete([self.target_query_length] * len(action_vocab))
+        self.action_space = gym.spaces.Discrete(len(self.action_vocab))
 
         self.cursor.executemany("INSERT INTO users(id, username, firstname, surname, age, nationality, created_at) VALUES(NULL, ?, ?, ?, ?, ?, ?)", data)
         self.cursor.execute("CREATE TABLE comments(id INTEGER PRIMARY KEY AUTOINCREMENT, comment TEXT, time TEXT)")
@@ -97,9 +161,18 @@ class SQLEnv(gym.Env):
         self.selected_columns = None
         self.reset()
 
-    def step(self, user_query: str):
-        assert isinstance(user_query, str)
+    def step(self, action: int):
+        token = self.action_vocab[action]
+
+        assert isinstance(token, str)
         # We can use the same database as long as we change the hidden query
+
+        if token != ";" and len(self.buffer) < self.target_query_length:
+            self.buffer.append(token)
+            return self.output_vocab.index("success"), 0., False, {}
+
+        user_query = " ".join(self.buffer)
+        self.buffer.clear()
 
         solution = self.get_solution(user_query)
         solution_query = "".join(solution)
@@ -111,15 +184,13 @@ class SQLEnv(gym.Env):
         _, found_flag_ = self.query_db(solution_query)
         assert found_flag_
 
-        terminal = False
-
+        terminal = True  # an episode is a single query, we don't do second order SQLis yet
         reward = -0.
         # if http_code == http.client.INTERNAL_SERVER_ERROR:
         # else:
         #     reward = -.1
         if found_flag:
             reward = 1.
-            terminal = True
 
         if ": syntax error" in content and "near " in content:
             # content = "syntax_error"
@@ -155,7 +226,7 @@ class SQLEnv(gym.Env):
 
         out_tokens = content.split(" ")
 
-        if set(out_tokens).difference(self.observation_space.vocab):
+        if set(out_tokens).difference(self.output_vocab):
             if not terminal:
                 print("Query: ", user_query)
                 print("returns: ", content)
@@ -167,7 +238,8 @@ class SQLEnv(gym.Env):
         if config.cheat_columns:
             response = " ".join([str(self.selected_columns), response])
 
-        return response, reward, terminal, {
+        state = self.output_vocab.index(response)
+        return state, reward, terminal, {
             'columns': self.query_template.split(" FROM ")[0].count(','),
             'template': self.query_template,
             'solved': found_flag,
@@ -216,5 +288,6 @@ class SQLEnv(gym.Env):
         )
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
         self.hidden_parameter = hidden_parameter.split("=")[0]
-        state, _, _, _ = self.step("--")
-        return state
+        self.buffer = []
+        # state, _, _, _ = self.step(0)
+        return self.observation_space.sample() * 0
