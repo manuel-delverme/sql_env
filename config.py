@@ -41,8 +41,8 @@ action_scorer_hidden_dim = 128
 DEBUG = sys.gettrace() is not None
 #
 action_history_len = 10
-num_tasks = 3
-max_columns = 3  # 3
+num_tasks = 1  # 3 TODO: change to 3
+max_columns = 1  # 3
 cheat_hidden_parameter = False
 cheat_columns = False
 #

@@ -63,7 +63,7 @@ def get_output_vocab():
     output_vocab = sorted(set(voc).union({
         COST_STR,
         *escapes,
-        # "",
+        ";",
     }))
 
     return output_vocab
@@ -104,7 +104,7 @@ class SQLEnv(gym.Env):
     def __init__(self):
         http.server.HTTPServer.allow_reuse_address = True
         self.connection = sqlite3.connect(":memory:", isolation_level=None, check_same_thread=False)
-        self.max_columns = config.max_columns
+        self.max_columns = config.max_columns  # TODO: set it to 1 for now
 
         self.cursor = self.connection.cursor()
         self.cursor.execute("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, firstname TEXT, surname TEXT, age INT, nationality TEXT, created_at TEXT)")
@@ -141,8 +141,9 @@ class SQLEnv(gym.Env):
         # self.observation_space = TextSpace(output_vocab, (1 + config.cheat_columns + config.cheat_hidden_parameter), (1,))
         self.output_vocab = list(sorted(output_vocab))
         vocab, seq_len = (len(output_vocab), (1 + config.cheat_columns + config.cheat_hidden_parameter))
-        self.observation_space = gym.spaces.MultiDiscrete([vocab] * seq_len)
-        # self.observation_space = gym.spaces.Discrete([vocab] * seq_len)
+
+        # self.observation_space = gym.spaces.MultiDiscrete([vocab] * seq_len)
+        self.observation_space = gym.spaces.Box(0, vocab, (seq_len,), np.int)
 
         self.target_query_length = config.complexity + self.max_columns - 1
         assert self.target_query_length > 1, "lvl1 is bugged"
@@ -159,6 +160,8 @@ class SQLEnv(gym.Env):
         self.query_template = None
         self.hidden_parameter = None
         self.selected_columns = None
+        with open("query.log", "w"):
+            pass
         self.reset()
 
     def step(self, action: int):
@@ -167,14 +170,23 @@ class SQLEnv(gym.Env):
         assert isinstance(token, str)
         # We can use the same database as long as we change the hidden query
 
-        if token != ";" and len(self.buffer) < self.target_query_length:
+        # 1 | 1 |; | "  |  " | '
+        if token == ";":
+            pass
+        elif len(self.buffer) == self.target_query_length:
+            self.buffer.append(token)
+        else:
             self.buffer.append(token)
             return self.output_vocab.index("success"), 0., False, {}
 
+        with open("query.log", "a") as f:
+            f.write(" | ".join(self.buffer) + "\n")
+
         user_query = " ".join(self.buffer)
         self.buffer.clear()
+        user_query = user_query.replace("  ", " ").strip()
 
-        solution = self.get_solution(user_query)
+        solution = self.get_solution()
         solution_query = "".join(solution)
         # completed_input_query = input_query + precompleted_query
 
@@ -239,7 +251,7 @@ class SQLEnv(gym.Env):
             response = " ".join([str(self.selected_columns), response])
 
         state = self.output_vocab.index(response)
-        return state, reward, terminal, {
+        return np.array([state, ]), reward, terminal, {
             'columns': self.query_template.split(" FROM ")[0].count(','),
             'template': self.query_template,
             'solved': found_flag,
@@ -262,7 +274,7 @@ class SQLEnv(gym.Env):
             http_code = http.client.INTERNAL_SERVER_ERROR
         return content, found_flag
 
-    def get_solution(self, input_query):
+    def get_solution(self):
         cols = self.query_template.split(" FROM ")[0].count(',')
         if "firstname='{input}'" in self.query_template:
             escape = "'"
@@ -270,8 +282,8 @@ class SQLEnv(gym.Env):
             escape = '"'
         else:
             escape = '1'
-        if escape in input_query:
-            input_query.format(escape=escape)
+        # if escape in input_query:
+        #     input_query.format(escape=escape)
         solution = [escape, " UNION SELECT ", *([" NULL, "] * cols), " a ", " FROM ", " p ", " -- "]
         return solution
 
