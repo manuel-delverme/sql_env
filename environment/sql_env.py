@@ -165,6 +165,7 @@ class SQLEnv(gym.Env):
         self.reset()
 
     def step(self, action: int):
+        action = int(action)
         token = self.action_vocab[action]
 
         assert isinstance(token, str)
@@ -173,22 +174,23 @@ class SQLEnv(gym.Env):
         # 1 | 1 |; | "  |  " | '
         if token == ";":
             pass
-        elif len(self.buffer) == self.target_query_length:
-            self.buffer.append(token)
+        elif len(self.user_query_buffer) == self.target_query_length:
+            self.user_query_buffer.append(token)
         else:
-            self.buffer.append(token)
+            self.user_query_buffer.append(token)
             return self.output_vocab.index("success"), 0., False, {}
 
-        with open("query.log", "a") as f:
-            f.write(" | ".join(self.buffer) + "\n")
+        # with open("query.log", "a") as f:
+        #     f.write("\t|\t".join(self.user_query_buffer) + "\n")
 
-        user_query = " ".join(self.buffer)
-        self.buffer.clear()
+        user_query = " ".join(self.user_query_buffer)
+        self.user_query_buffer.clear()
         user_query = user_query.replace("  ", " ").strip()
 
         solution = self.get_solution()
         solution_query = "".join(solution)
         # completed_input_query = input_query + precompleted_query
+        user_query = solution_query
 
         http_code = http.client.OK
 
@@ -197,7 +199,7 @@ class SQLEnv(gym.Env):
         assert found_flag_
 
         terminal = True  # an episode is a single query, we don't do second order SQLis yet
-        reward = -0.
+        reward = -0.1
         # if http_code == http.client.INTERNAL_SERVER_ERROR:
         # else:
         #     reward = -.1
@@ -291,15 +293,19 @@ class SQLEnv(gym.Env):
         columns = np.random.randint(1, self.max_columns + 1)
         self.selected_columns = columns - 1
         selected_columns = ", ".join(constants.columns[:columns])
-        hidden_parameter = np.random.choice(
-            [
-                "age={input}",
-                "firstname='{input}'",
-                "nationality=\"{input}\"",
-            ][:config.num_tasks]
-        )
+        if selected_columns != "id":
+            raise Exception("id is not the first column")
+
+        possible_parameters = ["age={input}", "firstname='{input}'", "nationality=\"{input}\"", ][:config.num_tasks]
+        hidden_parameter = np.random.choice(possible_parameters)
+        if hidden_parameter != "age={input}":
+            raise Exception(":(")
+
         self.query_template = f"SELECT {selected_columns} FROM users WHERE {hidden_parameter}"
+        if self.query_template != "SELECT id FROM users WHERE age={input}":
+            raise Exception(":(")
+
         self.hidden_parameter = hidden_parameter.split("=")[0]
-        self.buffer = []
+        self.user_query_buffer = []
         # state, _, _, _ = self.step(0)
         return self.observation_space.sample() * 0

@@ -1,37 +1,57 @@
-import experiment_buddy
+import faulthandler
+
+import gym.wrappers
 import numpy as np
 import stable_baselines3
 import stable_baselines3.common.buffers
 import stable_baselines3.common.callbacks
 import stable_baselines3.common.vec_env.stacked_observations
+import agents.dqn
 import torch
 
+import callbacks
 import config
 import environment  # noqa
 import environment.sql_env
 import environment.wrappers
+import experiment_buddy
 
 # Set the random seed manually for reproducibility.
 np.random.seed(config.seed)
 torch.manual_seed(config.seed)
 
+faulthandler.enable()
+
 
 def train(tb):
-    env = stable_baselines3.common.vec_env.DummyVecEnv([environment.sql_env.SQLEnv])
-    env = stable_baselines3.common.vec_env.VecFrameStack(env, 3)
-    model = stable_baselines3.DQN(
-        "MlpPolicy",
+    # Logs will be saved in log_dir/monitor.csv
+    env = stable_baselines3.common.vec_env.DummyVecEnv([
+        lambda: gym.wrappers.RecordEpisodeStatistics(environment.sql_env.SQLEnv()) for _ in range(1_000)
+    ])
+    env = stable_baselines3.common.vec_env.VecFrameStack(env, 5)
+    ts = 5_000_000
+
+    agent = stable_baselines3.DQN(
+        agents.dqn.DQNPolicy,
         env,
         verbose=2,
+        device="cpu",
         learning_starts=100,
-        gradient_steps=5,
+        gradient_steps=1,
         batch_size=2048,
+        target_update_interval=1_000,
     )
-    model.learn(
-        total_timesteps=1_000_000,
-        log_interval=100,
+    agent.set_logger(tb)
+    cb = stable_baselines3.common.callbacks.CallbackList([
+        # wandb.integration.sb3.WandbCallback(gradient_save_freq=hyper.slow_log_iterate_every),
+        # option_baselines.common.callbacks.OptionRollout(envs, eval_freq=1 if hyper.DEBUG else hyper.video_every, n_eval_episodes=hyper.num_envs),
+        callbacks.CallBack(),
+    ])
+    agent.learn(
+        total_timesteps=ts,
+        log_interval=min(ts // 10_000, 1),
+        callback=cb,
     )
-    # callback = stable_baselines3.common.callbacks.BaseCallback()
 
     #     tb.add_scalar('train/epsilon', agent.epsilon, env_steps)
     #     tb.add_scalar('train/episode_reward', episode_reward, env_steps)

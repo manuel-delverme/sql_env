@@ -27,7 +27,8 @@ num_env_steps = int(1e8)
 # use_linear_lr_decay = False  # _, help='use a linear schedule on the learning rate')
 #
 # num_steps = 30  # episode length
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = "cpu"
 env_name = "SQL-v1"
 # user = getpass.getuser()
 complexity = 3
